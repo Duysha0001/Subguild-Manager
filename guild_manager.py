@@ -12,8 +12,8 @@ client = commands.Bot(command_prefix=prefix)
 client.remove_command("help")
 owner_ids = [301295716066787332]
 
-token = open("box/guild_manager_token.txt", "r").read()
-app_string = open("box/cluster_app_string.txt", "r").read()
+token = str(os.environ.get("guild_manager_token"))
+app_string = str(os.environ.get("cluster_app_string"))
 default_avatar_url = "https://cdn.discordapp.com/attachments/664230839399481364/677534213418778660/default_image.png"
 
 cluster = MongoClient(app_string)
