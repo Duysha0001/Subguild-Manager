@@ -163,12 +163,6 @@ async def on_ready():
     )
 #=========Commands==========
 @client.command()
-async def logout(ctx):
-    if ctx.author.id in owner_ids:
-        await ctx.send("Logging out...")
-        await client.logout()
-
-@client.command()
 async def help(ctx):
     p = prefix
     cmd_desc = (
