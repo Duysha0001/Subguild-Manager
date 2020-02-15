@@ -170,8 +170,8 @@ async def help(ctx):
         f"**{p}leave-guild** - *выйти из текущей гильдии*\n"
         f"**{p}guilds** - *топ гильдий сервера*\n"
         f"**{p}guild-info [**Гильдия**]** - *посмотреть подробности гильдии*\n"
-        f"**{p}guild-members [**Страница топа**] [**Гильдия**]** - *список участников гильдии*\n"
-        f"**{p}user-guild @Пользователь (не обязательно) - *посмотреть свою / чужую гильдию*\n"
+        f"**{p}guild-top [**Страница топа**] [**Гильдия**]** - *топ участников гильдии*\n"
+        f"**{p}user-guild @Пользователь** (не обязательно) - *посмотреть свою / чужую гильдию*\n"
         f"**{p}create-guild [**Название**]** - *создаёт гильдию*\n"
         f'**{p}edit-guild [**Параметр**] "**Гильдия**" [**Новое значение**]** - *подробнее: {p}edit-guild*\n'
         f"**{p}delete-guild [**Гильдия**]** - *удаляет гильдию*"
@@ -220,12 +220,7 @@ async def create_guild(ctx, *, guild_name):
                             "avatar_url": default_avatar_url,
                             "leader_id": ctx.author.id,
                             "role_id": None,
-                            "members": {
-                                f"{ctx.author.id}": {
-                                    "id": ctx.author.id,
-                                    "messages": 0
-                                }
-                            }
+                            "members": {}
                         }
                     }
                 },
@@ -236,13 +231,12 @@ async def create_guild(ctx, *, guild_name):
                 title = f"✅ Гильдия **{guild_name}** создана",
                 description = (
                     f"Отредактировать гильдию: `{prefix}edit-guild`\n"
-                    "**-> Описание:** Без описания"
+                    f"Профиль гильдии: `{prefix}guild-info {guild_name}`\n"
+                    f"Зайти в гильдию `{prefix}join-guild {guild_name}`"
                 ),
                 color = discord.Color.green()
             )
             reply.set_thumbnail(url = default_avatar_url)
-            reply.add_field(name = "Владелец", value = f"{ctx.author}")
-            reply.add_field(name = "Кол-во участников", value = "1")
             await ctx.send(embed = reply)
 
 @client.command(aliases = ["edit-guild", "editguild", "eg"])
@@ -482,14 +476,17 @@ async def join_guild(ctx, *, guild_name):
 
             reply = discord.Embed(
                 title = "✅ Добро пожаловать",
-                description = f"Вы вступили в гильдию **{guild_name}**",
+                description = (
+                    f"Вы вступили в гильдию **{guild_name}**\n"
+                    f"-> Профиль гильдии: `{prefix}guild-info {guild_name}`"
+                ),
                 color = discord.Color.green()
             )
             reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
 
 @client.command(aliases = ["leave-guild", "leaveguild", "lg"])
-async def leave_guild(ctx):
+async def leave_guild(ctx, *, guild_name = None):
     collection = db["subguilds"]
 
     result = collection.find_one(
@@ -509,48 +506,74 @@ async def leave_guild(ctx):
         await ctx.send(embed = reply)
     else:
         result = result["subguilds"]
+        guild_names = []
         for subguild in result:
             if f"{ctx.author.id}" in subguild["members"]:
-                guild_name = subguild["name"]
+                guild_names.append(subguild["name"])
                 break
         del result
 
-        no = ["no", "0", "нет"]
-        yes = ["yes", "1", "да"]
-
-        warn_emb = discord.Embed(
-            title = "🛠 Подтверждение",
-            description = (
-                f"**->** Ваш счётчик сообщений обнулится, как только Вы покинете гильдию **{guild_name}**.\nПродолжить?\n"
-                f"Напишите `да` или `нет`"
-            )
-        )
-        warn_emb.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-        warn = await ctx.send(embed = warn_emb)
-
-        msg = await read_message(ctx.channel, ctx.author, 60)
-        await warn.delete()
-
-        if msg != "Timeout":
-            user_reply = msg.content.lower()
-            if user_reply in no:
-                await ctx.send("Действие отменено")
-            elif user_reply in yes:
-                collection.find_one_and_update(
-                    {"_id": ctx.guild.id, "subguilds.name": guild_name},
-                    {
-                        "$unset": {
-                            f"subguilds.$.members.{ctx.author.id}": ""
-                        }
-                    }
-                )
-
+        if len(guild_names) > 1:
+            guild_passed = False
+            if guild_name == None:
                 reply = discord.Embed(
-                    title = "🚪 Выход",
-                    description = f"Вы вышли из гильдии **{guild_name}**"
+                    title = "🛠 Найдено несколько гильдий",
+                    description = (
+                        f"Пожалуйста, уточните, из какой именно Вы выходите\n"
+                        f"`{prefix}leave-guild Название`\n" + "".join(guild_names)
+                    )
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
+            elif not guild_name in guild_names:
+                reply = discord.Embed(
+                    title = "💢 Упс",
+                    description = f"Вас нет в гильдии под названием **{guild_name}**"
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
+            else:
+                guild_passed = True
+        else:
+            guild_passed = True
+
+        if guild_passed:
+            no = ["no", "0", "нет"]
+            yes = ["yes", "1", "да"]
+
+            warn_emb = discord.Embed(
+                title = "🛠 Подтверждение",
+                description = (
+                    f"**->** Ваш счётчик сообщений обнулится, как только Вы покинете гильдию **{guild_name}**.\nПродолжить?\n"
+                    f"Напишите `да` или `нет`"
+                )
+            )
+            warn_emb.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            warn = await ctx.send(embed = warn_emb)
+
+            msg = await read_message(ctx.channel, ctx.author, 60)
+            await warn.delete()
+
+            if msg != "Timeout":
+                user_reply = msg.content.lower()
+                if user_reply in no:
+                    await ctx.send("Действие отменено")
+                elif user_reply in yes:
+                    collection.find_one_and_update(
+                        {"_id": ctx.guild.id, "subguilds.name": guild_name},
+                        {
+                            "$unset": {
+                                f"subguilds.$.members.{ctx.author.id}": ""
+                            }
+                        }
+                    )
+
+                    reply = discord.Embed(
+                        title = "🚪 Выход",
+                        description = f"Вы вышли из гильдии **{guild_name}**"
+                    )
+                    reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                    await ctx.send(embed = reply)
 
 @client.command()
 async def guilds(ctx):
@@ -589,7 +612,7 @@ async def guilds(ctx):
         
         lb = discord.Embed(
             title = f"Гильдии сервера {ctx.guild.name}",
-            description = desc,
+            description = f"Подробнее о гильдии: `{prefix}guild-info Название`\n\n{desc}",
             color = discord.Color.dark_blue()
         )
         lb.set_thumbnail(url = f"{ctx.guild.icon_url}")
@@ -625,7 +648,10 @@ async def guild_info(ctx, *, guild_name):
         
         reply = discord.Embed(
             title = subguild["name"],
-            description = subguild["description"],
+            description = (
+                f"{subguild['description']}\n"
+                f"**->** Топ 10 гильдии: `{prefix}guild-top 1 {guild_name}`"
+            ),
             color = discord.Color.green()
         )
         reply.set_thumbnail(url = subguild["avatar_url"])
@@ -636,7 +662,7 @@ async def guild_info(ctx, *, guild_name):
             reply.add_field(name = "🎗 Роль", value = f"<@&{subguild['role_id']}>", inline = False)
         await ctx.send(embed = reply)
 
-@client.command(aliases = ["guild-members", "guildmembers", "gm"])
+@client.command(aliases = ["guild-members", "guildmembers", "gm", "guild-top", "gt"])
 async def guild_members(ctx, page_num, *, guild_name):
     collection = db["subguilds"]
     interval = 10
@@ -702,7 +728,7 @@ async def guild_members(ctx, page_num, *, guild_name):
                 lb.set_footer(text=f"Стр. {page_num}/{(total_memb - 1)//interval + 1}")
                 await ctx.send(embed = lb)
 
-@client.command(aliases = ["user-guild", "userguild", "ug"])
+@client.command(aliases = ["user-guild", "userguild", "ug", "user-info", "userinfo", "ui"])
 async def user_guild(ctx, user_s = None):
     if user_s == None:
         user = ctx.author
@@ -867,5 +893,10 @@ async def guild_members_error(ctx, error):
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
+
+async def change_status():
+    await client.wait_until_ready()
+    await client.change_presence(activity=discord.Game(f"{prefix}help"))
+client.loop.create_task(change_status())
 
 client.run(token)
