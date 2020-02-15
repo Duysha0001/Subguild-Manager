@@ -170,6 +170,8 @@ async def help(ctx):
         f"**{p}leave-guild** - *выйти из текущей гильдии*\n"
         f"**{p}guilds** - *топ гильдий сервера*\n"
         f"**{p}guild-info [**Гильдия**]** - *посмотреть подробности гильдии*\n"
+        f"**{p}guild-members [**Страница топа**] [**Гильдия**]** - *список участников гильдии*\n"
+        f"**{p}user-guild @Пользователь (не обязательно) - *посмотреть свою / чужую гильдию*\n"
         f"**{p}create-guild [**Название**]** - *создаёт гильдию*\n"
         f'**{p}edit-guild [**Параметр**] "**Гильдия**" [**Новое значение**]** - *подробнее: {p}edit-guild*\n'
         f"**{p}delete-guild [**Гильдия**]** - *удаляет гильдию*"
@@ -634,6 +636,128 @@ async def guild_info(ctx, *, guild_name):
             reply.add_field(name = "🎗 Роль", value = f"<@&{subguild['role_id']}>", inline = False)
         await ctx.send(embed = reply)
 
+@client.command(aliases = ["guild-members", "guildmembers", "gm"])
+async def guild_members(ctx, page_num, *, guild_name):
+    collection = db["subguilds"]
+    interval = 10
+
+    if not page_num.isdigit():
+        reply = discord.Embed(
+            title = "💢 Неверный аргумент",
+            description = (
+                f"**{page_num}** должно быть целым числом\n"
+                f"Команда: `{prefix}{ctx.command.name} Номер_страницы Гильдия`"
+            )
+        )
+        await ctx.send(embed = reply)
+    else:
+        page_num = int(page_num)
+
+        result = collection.find_one(
+            {"_id": ctx.guild.id, "subguilds.name": guild_name},
+            projection={"subguilds.name": True, "subguilds.members": True}
+        )
+        if result == None:
+            reply = discord.Embed(
+                title = "💢 Упс",
+                description = (
+                    f"На сервере нет гильдий с названием **{guild_name}**\n"
+                    f"Список гильдий: `{prefix}guilds`"
+                ),
+                color = discord.Color.from_rgb(40, 40, 40)
+            )
+            await ctx.send(embed = reply)
+        else:
+            subguild = get_subguild(result, guild_name)
+            del result
+
+            members = subguild["members"]
+            total_memb = len(members)
+            if interval*(page_num - 1) >= total_memb:
+                reply = discord.Embed(
+                    title = "💢 Упс",
+                    description = f"Страница не найдена. Всего страниц: **{(total_memb - 1)//interval + 1}**"
+                )
+                await ctx.send(embed = reply)
+            else:
+                pairs = []
+                for key in members:
+                    member = members[key]
+                    pairs.append((member["id"], member["messages"]))
+                pairs.sort(key=lambda i: i[1], reverse=True)
+
+                last_num = min(total_memb, interval*page_num)
+                
+                desc = ""
+                for i in range(interval*(page_num-1), last_num):
+                    pair = pairs[i]
+                    user = client.get_user(pair[0])
+                    desc += f"**{i + 1})** {user} • {pair[1]} `💬`\n"
+                
+                lb = discord.Embed(
+                    title = f"🔎 Участники гильдии {guild_name}",
+                    description = desc,
+                    color = discord.Color.green()
+                )
+                lb.set_footer(text=f"Стр. {page_num}/{(total_memb - 1)//interval + 1}")
+                await ctx.send(embed = lb)
+
+@client.command(aliases = ["user-guild", "userguild", "ug"])
+async def user_guild(ctx, user_s = None):
+    if user_s == None:
+        user = ctx.author
+    else:
+        user = detect.member(ctx.guild, user_s)
+    if user == None:
+        reply = discord.Embed(
+            title = "💢 Упс",
+            description = f"Вы ввели {user_s}, подразумевая участника, но он не был найден",
+            color = discord.Color.darker_grey()
+        )
+        await ctx.send(embed = reply)
+    else:
+        collection = db["subguilds"]
+        result = collection.find_one(
+            {"_id": ctx.guild.id, f"subguilds.members.{user.id}.id": user.id}
+        )
+        if result == None:
+            reply = discord.Embed(
+                title = f"🛠 Пользователь не в гильдии",
+                description = f"Вы можете посмотреть список гильдий здесь: `{prefix}guilds`",
+                color = discord.Color.darker_grey()
+            )
+            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        else:
+            subguild = None
+            for sg in result["subguilds"]:
+                if sg["members"][f"{user.id}"]["id"] == user.id:
+                    subguild = sg
+                    break
+            del result
+
+            total_memb = 0
+            total_mes = 0
+            for key in subguild["members"]:
+                member = subguild["members"][key]
+                total_memb += 1
+                total_mes += member["messages"]
+            subguild["members"] = None
+            leader = client.get_user(subguild["leader_id"])
+
+            stat_emb = discord.Embed(
+                title = subguild["name"],
+                description = subguild["description"],
+                color = discord.Color.green()
+            )
+            stat_emb.set_thumbnail(url = subguild["avatar_url"])
+            stat_emb.add_field(name = "🔰 Владелец", value = f"{leader}", inline=False)
+            stat_emb.add_field(name = "👥 Всего участников", value = f"{total_memb}", inline=False)
+            stat_emb.add_field(name = "`💬` Всего сообщений", value = f"{total_mes}", inline=False)
+            if subguild["role_id"] != None:
+                stat_emb.add_field(name = "🎗 Роль", value = f"<@&{subguild['role_id']}>", inline = False)
+            await ctx.send(embed = stat_emb)
+
 #========Events========
 @client.event
 async def on_message(message):
@@ -725,6 +849,19 @@ async def guild_info_error(ctx, error):
             title = "📑 Недостаточно аргументов",
             description = (
                 f'**Использование:** `{prefix}{ctx.command.name} Название гильдии`'
+            ),
+            color = discord.Color.from_rgb(40, 40, 40)
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
+@guild_members.error
+async def guild_members_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        reply = discord.Embed(
+            title = "📑 Недостаточно аргументов",
+            description = (
+                f'**Использование:** `{prefix}{ctx.command.name} Номер_страницы Название гильдии`'
             ),
             color = discord.Color.from_rgb(40, 40, 40)
         )
