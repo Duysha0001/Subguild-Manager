@@ -19,6 +19,22 @@ default_avatar_url = "https://cdn.discordapp.com/attachments/664230839399481364/
 cluster = MongoClient(app_string)
 db = cluster["guild_data"]
 
+def c_split(text, lll=" "):
+    out=[]
+    wid=len(lll)
+    text_l=len(text)
+    start=0
+    end=-1
+    for i in range(text_l-wid+1):
+        if text[i:i+wid]==lll:
+            end=i
+            if start<end:
+                out.append(text[start:end])
+            start=i+wid
+    if end!=text_l-wid:
+        out.append(text[start:text_l])
+    return out
+
 def carve_int(string):
     nums = [str(i) for i in range(10)]
     out = ""
@@ -108,6 +124,9 @@ def has_roles(member, role_array):
                 break
     return has_them
 
+def image_link(string):
+    return string.startswith("https://")
+
 async def read_message(channel, user, t_out):
     try:
         msg = await client.wait_for("message", check=lambda message: user.id==message.author.id and channel.id==message.channel.id, timeout=t_out)
@@ -163,28 +182,108 @@ async def on_ready():
     )
 #=========Commands==========
 @client.command()
+async def logout(ctx):
+    if ctx.author.id in owner_ids:
+        await ctx.send("Logging out...")
+        await client.logout()
+
+@commands.cooldown(1, 5, commands.BucketType.member)
+@client.command()
 async def help(ctx):
     p = prefix
-    cmd_desc = (
+    user_cmd_desc = (
         f"**{p}join-guild [**Гильдия**]** - *зайти в гильдию*\n"
         f"**{p}leave-guild** - *выйти из текущей гильдии*\n"
         f"**{p}guilds** - *топ гильдий сервера*\n"
         f"**{p}guild-info [**Гильдия**]** - *посмотреть подробности гильдии*\n"
         f"**{p}guild-top [**Страница топа**] [**Гильдия**]** - *топ участников гильдии*\n"
         f"**{p}user-guild @Пользователь** (не обязательно) - *посмотреть свою / чужую гильдию*\n"
+    )
+    adm_cmd_desc = (
+        f"**{p}cmd-channels #канал-1 #канал-2 ...** - *настроить каналы реагирования*\n"
+        f"• {p}cmd-channels delete - *сбросить*\n"
         f"**{p}create-guild [**Название**]** - *создаёт гильдию*\n"
         f'**{p}edit-guild [**Параметр**] "**Гильдия**" [**Новое значение**]** - *подробнее: {p}edit-guild*\n'
-        f"**{p}delete-guild [**Гильдия**]** - *удаляет гильдию*"
+        f"**{p}delete-guild [**Гильдия**]** - *удаляет гильдию*\n"
         f"**{p}reset-guilds messages | mentions** - *обнуляет либо упоминания, либо сообщения всех гильдий сервера*\n"
         f"**{p}ping-count [**Пользователь**]** - *настраивает пользователя, пинги которого будут подсчитываться*\n"
+        f'**{p}count-roles "**Название гильдии**" @Роль1 @Роль2 ...** - *подсчёт членов гильдии с каждой ролью*\n'
     )
     help_emb = discord.Embed(
         title = f"📰 Список команд",
-        description = cmd_desc,
         color = discord.Color.from_rgb(150, 150, 150)
     )
+    if has_permissions(ctx.author, ["administrator"]):
+        help_emb.add_field(name = "**Администраторам**", value = adm_cmd_desc, inline=False)
+    help_emb.add_field(name = "**Всем пользователям**", value = user_cmd_desc, inline=False)
     await ctx.send(embed = help_emb)
 
+@commands.cooldown(1, 10, commands.BucketType.member)
+@client.command(aliases = ["cmd-channels", "cmdchannels", "cc"])
+async def cmd_channels(ctx, *raw_ch):
+    collection = db["cmd_channels"]
+
+    if not has_permissions(ctx.author, ["administrator"]):
+        reply = discord.Embed(
+            title = "💢 Недостаточно прав",
+            description = (
+                "Требуемые права:\n"
+                "> Администратор"
+            ),
+            color = discord.Color.from_rgb(40, 40, 40)
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+    
+    elif "delete" in raw_ch[0].lower():
+        collection.find_one_and_update(
+            {"_id": ctx.guild.id},
+            {
+                "$set": {"channels": None}
+            }
+        )
+        reply = discord.Embed(
+            title = "♻ Каналы сброшены",
+            description = "Теперь я реагирую на команды во всех каналах",
+            color = discord.Color.dark_green()
+        )
+        await ctx.send(embed = reply)
+
+    else:
+        channels = [detect.channel(ctx.guild, s) for s in raw_ch]
+        if None in channels:
+            reply = discord.Embed(
+                title = f"💢 Ошибка",
+                description = (
+                    f"В качестве каналов укажите их **#ссылки** или **ID**"
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        else:
+            channel_ids = [c.id for c in channels]
+
+            collection.find_one_and_update(
+                {"_id": ctx.guild.id},
+                {
+                    "$set": {"channels": channel_ids}
+                },
+                upsert=True
+            )
+            desc = ""
+            for channel in channels:
+                desc += f"> {channel.mention}\n"
+            reply = discord.Embed(
+                title = "🛠 Каналы настроены",
+                description = (
+                    f"Теперь бот реагирует на команды только в каналах:\n"
+                    f"{desc}"
+                ),
+                color = discord.Color.blurple()
+            )
+            await ctx.send(embed = reply)
+
+@commands.cooldown(1, 10, commands.BucketType.member)
 @client.command(aliases = ["create-guild", "createguild", "cg"])
 async def create_guild(ctx, *, guild_name):
     collection = db["subguilds"]
@@ -242,6 +341,7 @@ async def create_guild(ctx, *, guild_name):
             reply.set_thumbnail(url = default_avatar_url)
             await ctx.send(embed = reply)
 
+@commands.cooldown(1, 5, commands.BucketType.member)
 @client.command(aliases = ["edit-guild", "editguild", "eg"])
 async def edit_guild(ctx, parameter, *, text_data):
     collection = db["subguilds"]
@@ -278,7 +378,7 @@ async def edit_guild(ctx, parameter, *, text_data):
                 i += 1
         else:
             i = 1
-            while text_data[i] != '"':
+            while i < len(text_data) and text_data[i] != '"':
                 guild_name += text_data[i]
                 i += 1
         text = text_data[+i+1:].lstrip()
@@ -341,6 +441,16 @@ async def edit_guild(ctx, parameter, *, text_data):
                         await ctx.send(embed = reply)
                     else:
                         value = value.id
+                elif parameter == "avatar":
+                    correct_arg = image_link(text)
+                    if not correct_arg:
+                        reply = discord.Embed(
+                            title = "💢 Ошибка",
+                            description = f"Не удаётся найти картинку по ссылке {text}",
+                            color = discord.Color.from_rgb(40, 40, 40)
+                        )
+                        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                        await ctx.send(embed = reply)
                 
                 if correct_arg:
                     subguild[parameters[parameter]] = value
@@ -358,6 +468,7 @@ async def edit_guild(ctx, parameter, *, text_data):
                     reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                     await ctx.send(embed = reply)
 
+@commands.cooldown(1, 30, commands.BucketType.member)
 @client.command(aliases = ["delete-guild", "deleteguild", "dg"])
 async def delete_guild(ctx, *, guild_name):
     collection = db["subguilds"]
@@ -405,6 +516,7 @@ async def delete_guild(ctx, *, guild_name):
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
 
+@commands.cooldown(1, 10, commands.BucketType.member)
 @client.command(aliases = ["ping-count", "pingcount", "pc"])
 async def ping_count(ctx, u_search):
     collection = db["subguilds"]
@@ -460,6 +572,7 @@ async def ping_count(ctx, u_search):
         )
     await ctx.send(embed = reply)
 
+@commands.cooldown(1, 10, commands.BucketType.member)
 @client.command(aliases = ["reset-guilds", "resetguilds", "rg"])
 async def reset_guilds(ctx, parameter):
     collection = db["subguilds"]
@@ -527,6 +640,91 @@ async def reset_guilds(ctx, parameter):
     
     await ctx.send(embed = reply)
 
+@commands.cooldown(1, 5, commands.BucketType.member)
+@client.command(aliases = ["count-roles", "countroles", "cr"])
+async def count_roles(ctx, *, text):
+    if not has_permissions(ctx.author, ["administrator"]):
+        reply = discord.Embed(
+            title = "❌ Недостаточно прав",
+            description = (
+                "Требуемые права:\n"
+                "> Администратор"
+            ),
+            color = discord.Color.dark_red()
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+    else:
+        if text[0] != '"':
+            raw_roles = c_split(text)
+            guild_name = raw_roles[0]
+            raw_roles = raw_roles[1:len(raw_roles)]
+        else:
+            guild_name = ""
+            i = 1
+            while i < len(text) and text[i] != '"':
+                guild_name += text[i]
+                i += 1
+            text = text[+i+1:]
+            raw_roles = c_split(text)
+
+        roles = [detect.role(ctx.guild, s) for s in raw_roles]
+        if None in roles:
+            reply = discord.Embed(
+                title = f"💢 Ошибка",
+                description = (
+                    f"В качестве ролей укажите их **@Упоминания** или **ID**"
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        else:
+            collection = db["subguilds"]
+
+            result = collection.find_one(
+                {"_id": ctx.guild.id, "subguilds.name": guild_name},
+                projection={"subguilds.name": True, "subguilds.members": True}
+            )
+            if result == None:
+                reply = discord.Embed(
+                    title = "💢 Упс",
+                    description = f"На сервере нет гильдии с названием **{guild_name}**",
+                    color = discord.Color.dark_grey()
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
+            
+            else:
+                subguild = get_subguild(result, guild_name)
+                del result
+
+                pairs = [[r, 0] for r in roles]
+                for key in subguild["members"]:
+                    memb = subguild["members"][key]
+                    member = discord.utils.get(ctx.guild.members, id = memb["id"])
+                    if member != None:
+                        for i in range(len(pairs)):
+                            role = pairs[i][0]
+                            if role in member.roles:
+                                pairs[i][1] += 1
+                del subguild
+
+                pairs.sort(key=lambda i: i[1])
+                desc = ""
+                for pair in pairs:
+                    desc += f"<@&{pair[0].id}> • {pair[1]} 👥\n"
+
+                reply = discord.Embed(
+                    title = guild_name,
+                    description = (
+                        f"**Статистика ролей:**\n"
+                        f"{desc}"
+                    ),
+                    color = discord.Color.gold()
+                )
+                await ctx.send(embed = reply)
+
+@commands.cooldown(1, 30, commands.BucketType.member)
 @client.command(aliases = ["join-guild", "joinguild", "jg"])
 async def join_guild(ctx, *, guild_name):
     collection = db["subguilds"]
@@ -610,6 +808,7 @@ async def join_guild(ctx, *, guild_name):
             reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
 
+@commands.cooldown(1, 30, commands.BucketType.member)
 @client.command(aliases = ["leave-guild", "leaveguild", "lg"])
 async def leave_guild(ctx):
     collection = db["subguilds"]
@@ -674,6 +873,7 @@ async def leave_guild(ctx):
                 reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
 
+@commands.cooldown(1, 10, commands.BucketType.member)
 @client.command(aliases = ["top"])
 async def guilds(ctx, filtration = "messages"):
     collection = db["subguilds"]
@@ -738,6 +938,7 @@ async def guilds(ctx, filtration = "messages"):
         lb.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = lb)
 
+@commands.cooldown(1, 5, commands.BucketType.member)
 @client.command(aliases = ["guild-info", "guildinfo", "gi"])
 async def guild_info(ctx, *, guild_name):
     collection = db["subguilds"]
@@ -784,6 +985,7 @@ async def guild_info(ctx, *, guild_name):
             reply.add_field(name = "🎗 Роль", value = f"<@&{subguild['role_id']}>", inline = False)
         await ctx.send(embed = reply)
 
+@commands.cooldown(1, 5, commands.BucketType.member)
 @client.command(aliases = ["guild-members", "guildmembers", "gm", "guild-top", "gt"])
 async def guild_members(ctx, page_num, *, guild_name):
     collection = db["subguilds"]
@@ -850,6 +1052,7 @@ async def guild_members(ctx, page_num, *, guild_name):
                 lb.set_footer(text=f"Стр. {page_num}/{(total_memb - 1)//interval + 1}")
                 await ctx.send(embed = lb)
 
+@commands.cooldown(1, 5, commands.BucketType.member)
 @client.command(aliases = ["user-guild", "userguild", "ug", "user-info", "userinfo", "ui"])
 async def user_guild(ctx, user_s = None):
     if user_s == None:
@@ -872,7 +1075,7 @@ async def user_guild(ctx, user_s = None):
             reply = discord.Embed(
                 title = f"🛠 Пользователь не в гильдии",
                 description = f"Вы можете посмотреть список гильдий здесь: `{prefix}guilds`",
-                color = discord.Color.darker_grey()
+                color = discord.Color.dark_grey()
             )
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -911,7 +1114,18 @@ async def user_guild(ctx, user_s = None):
 #========Events========
 @client.event
 async def on_message(message):
-    await client.process_commands(message)
+    collection = db["cmd_channels"]
+    result = collection.find_one({"_id": message.guild.id})
+    if result == None:
+        wl_channels = [message.channel.id]
+    elif result["channels"] == None:
+        wl_channels = [message.channel.id]
+    else:
+        wl_channels = result["channels"]
+    
+    if message.channel.id in wl_channels:
+        await client.process_commands(message)
+    
     collection = db["subguilds"]
 
     if not message.author.bot:
@@ -956,6 +1170,22 @@ async def on_message(message):
                 )
 
 #========Errors==========
+@client.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        
+        def TimeExpand(time):
+            if time//60 > 0:
+                return str(time//60)+'мин. '+str(time%60)+' сек.'
+            else:
+                return str(time)+' сек.'
+        
+        cool_notify = discord.Embed(
+                title='⏳ Подождите немного',
+                description = f"Осталось {TimeExpand(int(error.retry_after))}"
+            )
+        await ctx.send(embed=cool_notify)
+#====Exact errors=====
 @create_guild.error
 async def create_guild_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
