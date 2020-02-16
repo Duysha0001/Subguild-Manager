@@ -200,6 +200,7 @@ async def help(ctx):
         f"**{p}user-guild @Пользователь** (не обязательно) - *посмотреть свою / чужую гильдию*\n"
     )
     adm_cmd_desc = (
+        f"**{p}settings** - *текущие настройки*\n"
         f"**{p}cmd-channels #канал-1 #канал-2 ...** - *настроить каналы реагирования*\n"
         f"• {p}cmd-channels delete - *сбросить*\n"
         f"**{p}create-guild [**Название**]** - *создаёт гильдию*\n"
@@ -217,6 +218,66 @@ async def help(ctx):
         help_emb.add_field(name = "**Администраторам**", value = adm_cmd_desc, inline=False)
     help_emb.add_field(name = "**Всем пользователям**", value = user_cmd_desc, inline=False)
     await ctx.send(embed = help_emb)
+
+@commands.cooldown(1, 5, commands.BucketType.member)
+@client.command()
+async def settings(ctx):
+    if not has_permissions(ctx.author, ["administrator"]):
+        reply = discord.Embed(
+            title = "💢 Недостаточно прав",
+            description = (
+                "Требуемые права:\n"
+                "> Администратор"
+            ),
+            color = discord.Color.from_rgb(40, 40, 40)
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+    else:
+        collection = db["cmd_channels"]
+        result = collection.find_one({"_id": ctx.guild.id})
+        wl_channels = None
+        if result != None:
+            wl_channels = result["channels"]
+        
+        if wl_channels == None:
+            chan_desc = "> Все каналы"
+        else:
+            chan_desc = ""
+            for ID in wl_channels:
+                chan_desc += f"> {client.get_channel(ID).mention}\n"
+        
+        collection = db["subguilds"]
+        result = collection.find_one(
+            {"_id": ctx.guild.id, "mentioner_id": {"$exists": True}},
+            projection={"mentioner_id": True}
+        )
+        pinger_id = None
+        if result != None:
+            pinger_id = result["mentioner_id"]
+        
+        if pinger_id == None:
+            ping_desc = "выключено"
+        else:
+            ping_desc = f"{client.get_user(pinger_id)}"
+        
+        reply = discord.Embed(
+            title = "⚙ Текущие настройки сервера",
+            description = (
+                f"**Каналы для команд бота:**\n"
+                f"{chan_desc}\n"
+                f"**Вести подсчёт упоминаний от:**\n"
+                f"{ping_desc}\n\n"
+                f"-> Настроить каналы для команд: `{prefix}cmd-channels #канал-1 #канал-2 ...`\n"
+                f"---> Сбросить: `{prefix}cmd-channels delete`\n"
+                f"-> Настроить подсчёт упоминаний: `{prefix}ping-count @Участник`\n"
+                f"---> Сбросить: `{prefix}ping-count delete`\n"
+                f"-> Посмотреть топ гильдий: `{prefix}top`\n"
+            ),
+            color = discord.Color.blurple()
+        )
+        reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
+        await ctx.send(embed = reply)
 
 @commands.cooldown(1, 10, commands.BucketType.member)
 @client.command(aliases = ["cmd-channels", "cmdchannels", "cc"])
@@ -1293,6 +1354,33 @@ async def reset_guilds_error(ctx, error):
             title = "📑 Недостаточно аргументов",
             description = (
                 f'**Использование:** `{prefix}{ctx.command.name} messages или mentions`'
+            ),
+            color = discord.Color.from_rgb(40, 40, 40)
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
+@count_roles.error
+async def count_roles_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        reply = discord.Embed(
+            title = "📑 Недостаточно аргументов",
+            description = (
+                f'**Использование:** `{prefix}{ctx.command.name} "Гильдия" @роль1 @роль2 ...`'
+            ),
+            color = discord.Color.from_rgb(40, 40, 40)
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
+@cmd_channels.error
+async def cmd_channels_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        reply = discord.Embed(
+            title = "📑 Недостаточно аргументов",
+            description = (
+                f'**Использование:** `{prefix}{ctx.command.name} #канал-1 #канал-2 ...`\n'
+                f"**Сбросить настройки:** `{prefix}{ctx.command.name} delete`"
             ),
             color = discord.Color.from_rgb(40, 40, 40)
         )
