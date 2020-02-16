@@ -1063,7 +1063,6 @@ async def user_guild(ctx, user_s = None):
         reply = discord.Embed(
             title = "💢 Упс",
             description = f"Вы ввели {user_s}, подразумевая участника, но он не был найден",
-            color = discord.Color.darker_grey()
         )
         await ctx.send(embed = reply)
     else:
@@ -1075,14 +1074,12 @@ async def user_guild(ctx, user_s = None):
             reply = discord.Embed(
                 title = f"🛠 Пользователь не в гильдии",
                 description = f"Вы можете посмотреть список гильдий здесь: `{prefix}guilds`",
-                color = discord.Color.dark_grey()
             )
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
         else:
-            subguild = None
             for sg in result["subguilds"]:
-                if sg["members"][f"{user.id}"]["id"] == user.id:
+                if f"{user.id}" in sg["members"]:
                     subguild = sg
                     break
             del result
