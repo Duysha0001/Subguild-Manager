@@ -174,7 +174,7 @@ async def help(ctx):
         f"**{p}user-guild @Пользователь** (не обязательно) - *посмотреть свою / чужую гильдию*\n"
         f"**{p}create-guild [**Название**]** - *создаёт гильдию*\n"
         f'**{p}edit-guild [**Параметр**] "**Гильдия**" [**Новое значение**]** - *подробнее: {p}edit-guild*\n'
-        f"**{p}delete-guild [**Гильдия**]** - *удаляет гильдию*\n"
+        f"**{p}delete-guild [**Гильдия**]** - *удаляет гильдию*"
         f"**{p}reset-guilds messages | mentions** - *обнуляет либо упоминания, либо сообщения всех гильдий сервера*\n"
         f"**{p}ping-count [**Пользователь**]** - *настраивает пользователя, пинги которого будут подсчитываться*\n"
     )
@@ -611,7 +611,7 @@ async def join_guild(ctx, *, guild_name):
             await ctx.send(embed = reply)
 
 @client.command(aliases = ["leave-guild", "leaveguild", "lg"])
-async def leave_guild(ctx, *, guild_name = None):
+async def leave_guild(ctx):
     collection = db["subguilds"]
 
     result = collection.find_one(
@@ -631,74 +631,48 @@ async def leave_guild(ctx, *, guild_name = None):
         await ctx.send(embed = reply)
     else:
         result = result["subguilds"]
-        guild_names = []
         for subguild in result:
             if f"{ctx.author.id}" in subguild["members"]:
-                guild_names.append(subguild["name"])
+                guild_name = subguild["name"]
                 break
         del result
 
-        if len(guild_names) > 1:
-            guild_passed = False
-            if guild_name == None:
-                reply = discord.Embed(
-                    title = "🛠 Найдено несколько гильдий",
-                    description = (
-                        f"Пожалуйста, уточните, из какой именно Вы выходите\n"
-                        f"`{prefix}leave-guild Название`\n" + "".join(guild_names)
-                    )
-                )
-                reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                await ctx.send(embed = reply)
-            elif not guild_name in guild_names:
-                reply = discord.Embed(
-                    title = "💢 Упс",
-                    description = f"Вас нет в гильдии под названием **{guild_name}**"
-                )
-                reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                await ctx.send(embed = reply)
-            else:
-                guild_passed = True
-        else:
-            guild_passed = True
+        no = ["no", "0", "нет"]
+        yes = ["yes", "1", "да"]
 
-        if guild_passed:
-            no = ["no", "0", "нет"]
-            yes = ["yes", "1", "да"]
-
-            warn_emb = discord.Embed(
-                title = "🛠 Подтверждение",
-                description = (
-                    f"**->** Ваш счётчик сообщений обнулится, как только Вы покинете гильдию **{guild_name}**.\nПродолжить?\n"
-                    f"Напишите `да` или `нет`"
-                )
+        warn_emb = discord.Embed(
+            title = "🛠 Подтверждение",
+            description = (
+                f"**->** Ваш счётчик сообщений обнулится, как только Вы покинете гильдию **{guild_name}**.\nПродолжить?\n"
+                f"Напишите `да` или `нет`"
             )
-            warn_emb.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-            warn = await ctx.send(embed = warn_emb)
+        )
+        warn_emb.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+        warn = await ctx.send(embed = warn_emb)
 
-            msg = await read_message(ctx.channel, ctx.author, 60)
-            await warn.delete()
+        msg = await read_message(ctx.channel, ctx.author, 60)
+        await warn.delete()
 
-            if msg != "Timeout":
-                user_reply = msg.content.lower()
-                if user_reply in no:
-                    await ctx.send("Действие отменено")
-                elif user_reply in yes:
-                    collection.find_one_and_update(
-                        {"_id": ctx.guild.id, "subguilds.name": guild_name},
-                        {
-                            "$unset": {
-                                f"subguilds.$.members.{ctx.author.id}": ""
-                            }
+        if msg != "Timeout":
+            user_reply = msg.content.lower()
+            if user_reply in no:
+                await ctx.send("Действие отменено")
+            elif user_reply in yes:
+                collection.find_one_and_update(
+                    {"_id": ctx.guild.id, "subguilds.name": guild_name},
+                    {
+                        "$unset": {
+                            f"subguilds.$.members.{ctx.author.id}": ""
                         }
-                    )
+                    }
+                )
 
-                    reply = discord.Embed(
-                        title = "🚪 Выход",
-                        description = f"Вы вышли из гильдии **{guild_name}**"
-                    )
-                    reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                    await ctx.send(embed = reply)
+                reply = discord.Embed(
+                    title = "🚪 Выход",
+                    description = f"Вы вышли из гильдии **{guild_name}**"
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
 
 @client.command(aliases = ["top"])
 async def guilds(ctx, filtration = "messages"):
@@ -1066,6 +1040,32 @@ async def guild_members_error(ctx, error):
             title = "📑 Недостаточно аргументов",
             description = (
                 f'**Использование:** `{prefix}{ctx.command.name} Номер_страницы Название гильдии`'
+            ),
+            color = discord.Color.from_rgb(40, 40, 40)
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
+@ping_count.error
+async def ping_count_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        reply = discord.Embed(
+            title = "📑 Недостаточно аргументов",
+            description = (
+                f'**Использование:** `{prefix}{ctx.command.name} @Пользователь`'
+            ),
+            color = discord.Color.from_rgb(40, 40, 40)
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
+@reset_guilds.error
+async def reset_guilds_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        reply = discord.Embed(
+            title = "📑 Недостаточно аргументов",
+            description = (
+                f'**Использование:** `{prefix}{ctx.command.name} messages или mentions`'
             ),
             color = discord.Color.from_rgb(40, 40, 40)
         )
