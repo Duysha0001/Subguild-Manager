@@ -504,7 +504,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
         "privacy": "private"
     }
     guild_name = ""
-    i = 0
+
     if parameter not in parameters:
         reply = discord.Embed(
             title = "📑 Доступные параметры настроек",
@@ -535,7 +535,8 @@ async def edit_guild(ctx, parameter, *, text_data = None):
             await ctx.send(embed = reply)
         
         elif not text_data.startswith('"'):
-            while text_data[i] != " ":
+            i = 0
+            while i < len(text_data) and text_data[i] != " ":
                 guild_name += text_data[i]
                 i += 1
         else:
@@ -1346,6 +1347,12 @@ async def join_guild(ctx, *, guild_name):
                             }
                         }
                     }
+                )
+                collection.find_one_and_update(
+                    {"_id": ctx.guild.id, "subguilds.requests": {
+                        "$elemMatch": {"$eq": ctx.author.id}
+                    }},
+                    {"$pull": {"subguilds.$.requests": ctx.author.id}}
                 )
 
                 await give_join_role(ctx.author, guild_role_id)
