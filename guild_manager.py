@@ -10,7 +10,6 @@ from pymongo import MongoClient
 prefix = "."
 client = commands.Bot(command_prefix=prefix)
 client.remove_command("help")
-owner_ids = [301295716066787332]
 
 token = str(os.environ.get("guild_manager_token"))
 app_string = str(os.environ.get("cluster_app_string"))
