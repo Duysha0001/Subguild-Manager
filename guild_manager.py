@@ -144,8 +144,21 @@ async def read_message(channel, user, t_out):
 async def give_join_role(member, role_id):
     if role_id != None:
         role = discord.utils.get(member.guild.roles, id = role_id)
-        if role != None:
-            await member.add_roles(role)
+        if role != None and role not in member.roles:
+            try:
+                await member.add_roles(role)
+            except Exception:
+                pass
+    return
+
+async def remove_join_role(member, role_id):
+    if role_id != None:
+        role = discord.utils.get(member.guild.roles, id = role_id)
+        if role != None and role in member.roles:
+            try:
+                await member.remove_roles(role)
+            except Exception:
+                pass
     return
 
 class detect:
@@ -894,6 +907,7 @@ async def leave_guild(ctx):
         for subguild in result:
             if f"{ctx.author.id}" in subguild["members"]:
                 guild_name = subguild["name"]
+                guild_role_id = subguild["role_id"]
                 break
         del result
 
@@ -926,7 +940,7 @@ async def leave_guild(ctx):
                         }
                     }
                 )
-
+                await remove_join_role(ctx.author, guild_role_id)
                 reply = discord.Embed(
                     title = "🚪 Выход",
                     description = f"Вы вышли из гильдии **{guild_name}**"
