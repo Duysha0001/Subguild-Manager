@@ -195,7 +195,7 @@ async def on_ready():
     )
 
 @client.event
-async def on_member_leave(member):
+async def on_member_remove(member):
     collection = db["subguilds"]
     collection.find_one_and_update(
         {"_id": member.guild.id, f"subguilds.members.{member.id}.id": member.id},
