@@ -193,6 +193,15 @@ async def on_ready():
         f">> Prefix is {prefix}\n"
         f">> Bot user: {client.user}"
     )
+
+@client.event
+async def on_member_leave(member):
+    collection = db["subguilds"]
+    collection.find_one_and_update(
+        {"_id": member.guild.id, f"subguilds.members.{member.id}.id": member.id},
+        {"$unset": {f"subguilds.$.members.{member.id}": ""}}
+    )
+
 #=========Commands==========
 @client.command()
 async def logout(ctx):
