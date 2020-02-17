@@ -892,7 +892,7 @@ async def leave_guild(ctx):
             "_id": ctx.guild.id,
             f"subguilds.members.{ctx.author.id}.id": ctx.author.id
         },
-        projection={"subguilds.name": True, "subguilds.members": True}
+        projection={"subguilds.name": True, "subguilds.members": True, "subguilds.role_id": True}
     )
     if result == None:
         reply = discord.Embed(
