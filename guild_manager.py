@@ -1055,7 +1055,7 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
         "under": {
             "usage": f"`{prefix}kick under Планка_сообщений Гильдия`",
             "example": f"`{prefix}kick under 50 Моя Гильдия`",
-            "info": "Кикнуть тех, кто у кого сообщений меньше заданной планки"
+            "info": "Кикнуть тех, у кого сообщений меньше заданной планки"
         },
         "last": {
             "usage": f"`{prefix}kick last Кол-во Гильдия`",
@@ -1739,7 +1739,7 @@ async def guild_info(ctx, *, guild_name):
             color = discord.Color.green()
         )
         reply.set_thumbnail(url = subguild["avatar_url"])
-        reply.add_field(name = "🔰 Владелец", value = f"{leader}", inline=False)
+        reply.add_field(name = "🔰 Владелец", value = f_username(leader), inline=False)
         reply.add_field(name = "👥 Всего участников", value = f"{total_memb}", inline=False)
         reply.add_field(name = "`💬` Всего сообщений", value = f"{total_mes}", inline=False)
         if subguild["mentions"] > 0:
@@ -1754,7 +1754,7 @@ async def guild_info(ctx, *, guild_name):
 @client.command(aliases = ["guild-members", "guildmembers", "gm", "guild-top", "gt"])
 async def guild_members(ctx, page_num, *, guild_name):
     collection = db["subguilds"]
-    interval = 10
+    interval = 15
 
     if not page_num.isdigit():
         reply = discord.Embed(
@@ -1833,7 +1833,8 @@ async def user_guild(ctx, user_s = None):
     else:
         collection = db["subguilds"]
         result = collection.find_one(
-            {"_id": ctx.guild.id, f"subguilds.members.{user.id}.id": user.id}
+            {"_id": ctx.guild.id, f"subguilds.members.{user.id}.id": user.id},
+            projection={"subguilds.requests": False}
         )
         if result == None:
             reply = discord.Embed(
@@ -1849,30 +1850,18 @@ async def user_guild(ctx, user_s = None):
                     break
             del result
 
-            total_memb = 0
-            total_mes = 0
-            for key in subguild["members"]:
-                member = subguild["members"][key]
-                total_memb += 1
-                total_mes += member["messages"]
-            subguild["members"] = None
-            leader = client.get_user(subguild["leader_id"])
+            user_mes = subguild["members"][f"{user.id}"]["messages"]
+            pairs = [(int(ID), subguild["members"][ID]["messages"]) for ID in subguild["members"]]
+            subguild["members"] = {}
+            pairs.sort(key=lambda i: i[1], reverse=True)
 
-            stat_emb = discord.Embed(
-                title = subguild["name"],
-                description = subguild["description"],
-                color = discord.Color.green()
-            )
-            stat_emb.set_thumbnail(url = subguild["avatar_url"])
-            stat_emb.add_field(name = "🔰 Владелец", value = f"{leader}", inline=False)
-            stat_emb.add_field(name = "👥 Всего участников", value = f"{total_memb}", inline=False)
-            stat_emb.add_field(name = "`💬` Всего сообщений", value = f"{total_mes}", inline=False)
-            if subguild["mentions"] > 0:
-                stat_emb.add_field(name = "📯 Упоминаний", value = f"{subguild['mentions']}", inline = False)
-            if subguild["role_id"] != None:
-                stat_emb.add_field(name = "🎗 Роль", value = f"<@&{subguild['role_id']}>", inline = False)
-            if subguild["private"]:
-                stat_emb.add_field(name = "🔒 Приватность", value = "Вступление по заявкам")
+            place = pairs.index((user.id, user_mes)) + 1
+
+            stat_emb = discord.Embed(color = discord.Color.blue())
+            stat_emb.add_field(name="🛡 Гильдия", value=f_username(subguild['name']), inline = False)
+            stat_emb.add_field(name="`💬` Написано сообщений", value=f"{user_mes}", inline = False)
+            stat_emb.add_field(name="🏅 Место", value=f"{place}/{len(pairs)}", inline = False)
+            stat_emb.set_author(name = f"Профиль 🔎 {f_username(user)}", icon_url = f"{user.avatar_url}")
             await ctx.send(embed = stat_emb)
 
 #========Events========
@@ -2151,7 +2140,7 @@ async def kick_error(ctx, error):
                 "> `under`\n"
                 "> `last`\n"
                 f"**Пример:** `{prefix}{ctx.command.name} user @Участник Моя гильдия`\n"
-                f"**Подробнее:** `{prefix}{ctx.command.name} Параметр`"
+                f"**Подробнее:** `{prefix}{ctx.command.name} user (или under и last)`"
             ),
             color = discord.Color.from_rgb(40, 40, 40)
         )
