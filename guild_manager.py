@@ -110,6 +110,7 @@ def perms_for(role):
 
 def has_permissions(member, perm_array):
     owner_ids = [301295716066787332]
+
     to_have = len(perm_array)
     if member.id == member.guild.owner_id or member.id in owner_ids:
         return True
@@ -217,7 +218,7 @@ class detect:
         ID = carve_int(search)
         if ID == None:
             ID = 0
-        member = discord.utils.get(guild.members, id=ID)
+        member = guild.get_member(ID)
         return member
     
     @staticmethod
@@ -225,7 +226,7 @@ class detect:
         ID = carve_int(search)
         if ID == None:
             ID = 0
-        channel = discord.utils.get(guild.channels, id=ID)
+        channel = guild.get_channel(ID)
         return channel
     
     @staticmethod
@@ -233,7 +234,7 @@ class detect:
         ID = carve_int(search)
         if ID == None:
             ID = 0
-        role = discord.utils.get(guild.roles, id=ID)
+        role = guild.get_role(ID)
         return role
 
 @client.event
@@ -286,7 +287,7 @@ async def help(ctx):
         f"`{p}accept Номер_заявки Гильдия` - *принять заявку*\n"
         f"`{p}decline Номер_заявки Гильдия` - *отклонить заявку*\n"
         f"‣—‣ `{p}accept/decline all Гильдия` - *принять/отклонить все заявки*\n"
-        f"`{p}kick Параметр Значение Гильдия` - *кик разных калибров, подробнее: {p}kick*\n"
+        f"`{p}kick Параметр Значение Гильдия` - *кик разных калибров, подробнее: `{p}kick`*\n"
     )
     adm_cmd_desc = (
         f"`{p}settings` - *текущие настройки*\n"
@@ -771,9 +772,15 @@ async def requests(ctx, page, *, guild_name):
             first_num = (page - 1) * interval
             total_pages = (length - 1) // interval + 1
             if first_num >= length:
+                title = "🔎 Страница не найдена"
+                desc = f"**Всего страниц:** {total_pages}"
+                if length == 0:
+                    title = "📜 Список запросов пуст"
+                    desc = "Заходите позже 🎀"
                 reply = discord.Embed(
-                    title = "🔎 Страница не найдена",
-                    description = f"**Всего страниц:** {total_pages}"
+                    title = title,
+                    description = desc,
+                    color = discord.Color.dark_teal()
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
@@ -1363,68 +1370,74 @@ async def reset_guilds(ctx, parameter):
     
     await ctx.send(embed = reply)
 
-@commands.cooldown(1, 5, commands.BucketType.member)
+@commands.cooldown(1, 10, commands.BucketType.member)
 @client.command(aliases = ["count-roles", "countroles", "cr"])
 async def count_roles(ctx, *, text):
-    if not has_permissions(ctx.author, ["administrator"]):
+    collection = db["subguilds"]
+
+    if text[0] != '"':
+        raw_roles = c_split(text)
+        guild_name = raw_roles[0]
+        raw_roles = raw_roles[1:len(raw_roles)]
+    else:
+        guild_name = ""
+        i = 1
+        while i < len(text) and text[i] != '"':
+            guild_name += text[i]
+            i += 1
+        text = text[+i+1:]
+        raw_roles = c_split(text)
+    
+    result = collection.find_one(
+        {"_id": ctx.guild.id, "subguilds.name": guild_name},
+        projection={
+            "subguilds.name": True,
+            "subguilds.members": True,
+            "subguilds.leader_id": True
+        }
+    )
+    if result == None:
         reply = discord.Embed(
-            title = "❌ Недостаточно прав",
-            description = (
-                "Требуемые права:\n"
-                "> Администратор"
-            ),
+            title = "💢 Упс",
+            description = f"На сервере нет гильдии с названием **{guild_name}**",
             color = discord.Color.dark_red()
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
+    
     else:
-        if text[0] != '"':
-            raw_roles = c_split(text)
-            guild_name = raw_roles[0]
-            raw_roles = raw_roles[1:len(raw_roles)]
-        else:
-            guild_name = ""
-            i = 1
-            while i < len(text) and text[i] != '"':
-                guild_name += text[i]
-                i += 1
-            text = text[+i+1:]
-            raw_roles = c_split(text)
+        subguild = get_subguild(result, guild_name)
+        del result
 
-        roles = [detect.role(ctx.guild, s) for s in raw_roles]
-        if None in roles:
+        if not has_permissions(ctx.author, ["administrator"]) and ctx.author.id != subguild["leader_id"]:
             reply = discord.Embed(
-                title = f"💢 Ошибка",
+                title = "❌ Недостаточно прав",
                 description = (
-                    f"В качестве ролей укажите их **@Упоминания** или **ID**"
-                )
+                    f"Вы не являетесь владельцем гильдии **{guild_name}** или администратором сервера"
+                ),
+                color = discord.Color.dark_red()
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
-        else:
-            collection = db["subguilds"]
 
-            result = collection.find_one(
-                {"_id": ctx.guild.id, "subguilds.name": guild_name},
-                projection={"subguilds.name": True, "subguilds.members": True}
-            )
-            if result == None:
+        else:
+            roles = [detect.role(ctx.guild, s) for s in raw_roles]
+            if None in roles or roles == []:
                 reply = discord.Embed(
-                    title = "💢 Упс",
-                    description = f"На сервере нет гильдии с названием **{guild_name}**",
-                    color = discord.Color.dark_grey()
+                    title = f"💢 Ошибка",
+                    description = (
+                        f"В качестве ролей укажите их **@Упоминания** или **ID**\n"
+                        f'**Пример:** `{prefix}count-roles "{guild_name}" {ctx.guild.default_role.id}`'
+                    )
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
-            
-            else:
-                subguild = get_subguild(result, guild_name)
-                del result
 
+            else:
                 pairs = [[r, 0] for r in roles]
                 for key in subguild["members"]:
                     memb = subguild["members"][key]
-                    member = discord.utils.get(ctx.guild.members, id = memb["id"])
+                    member = ctx.guild.get_member(memb["id"])
                     if member != None:
                         for i in range(len(pairs)):
                             role = pairs[i][0]
@@ -1443,7 +1456,7 @@ async def count_roles(ctx, *, text):
                         f"**Статистика ролей:**\n"
                         f"{desc}"
                     ),
-                    color = discord.Color.gold()
+                    color = discord.Color.teal()
                 )
                 await ctx.send(embed = reply)
 
@@ -1861,7 +1874,7 @@ async def user_guild(ctx, user_s = None):
             stat_emb = discord.Embed(color = discord.Color.blue())
             stat_emb.add_field(name="🛡 Гильдия", value=f_username(subguild['name']), inline = False)
             stat_emb.add_field(name="`💬` Написано сообщений", value=f"{user_mes}", inline = False)
-            stat_emb.add_field(name="🏅 Место", value=f"{place}/{len(pairs)}", inline = False)
+            stat_emb.add_field(name="🏅 Место", value=f"{place} / {len(pairs)}", inline = False)
             stat_emb.set_author(name = f"Профиль 🔎 {f_username(user)}", icon_url = f"{user.avatar_url}")
             stat_emb.set_thumbnail(url = subguild["avatar_url"])
             await ctx.send(embed = stat_emb)
