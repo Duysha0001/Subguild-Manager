@@ -1614,9 +1614,7 @@ async def join_guild(ctx, *, guild_name):
         subguild = get_subguild(result, guild_name)
         guild_role_id = subguild["role_id"]
         private = subguild["private"]
-        leader = client.get_user(subguild["leader_id"])
         total_memb = len(subguild["members"])
-        del subguild
 
         if total_memb >= m_lim:
             reply = discord.Embed(
@@ -1660,7 +1658,7 @@ async def join_guild(ctx, *, guild_name):
                 await ctx.send(embed = reply)
 
             else:
-                if private and ctx.author.id != leader.id:
+                if private and ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]]:
                     collection.find_one_and_update(
                         {"_id": ctx.guild.id, "subguilds.name": guild_name},
                         {"$addToSet": {"subguilds.$.requests": ctx.author.id}},
@@ -1686,7 +1684,12 @@ async def join_guild(ctx, *, guild_name):
                         )
                     )
                     log.set_author(name = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                    await knock_dm(leader, ctx.channel, log)
+                    if subguild["leader_id"] != None:
+                        leader = client.get_user(subguild["leader_id"])
+                        client.loop.create_task(knock_dm(leader, ctx.channel, log))
+                    if subguild["helper_id"] != None:
+                        helper = client.get_user(subguild["helper_id"])
+                        client.loop.create_task(knock_dm(helper, ctx.channel, log))
 
                 else:
 
