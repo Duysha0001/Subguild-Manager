@@ -764,7 +764,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
 
                     reply = discord.Embed(
                         title = "✅ Настроено",
-                        description = f"**->** Профиль гильдии: `{prefix}guild-info {f_username(subguild['name'])}`",
+                        description = f"**->** Профиль гильдии: `{prefix}guild-info {subguild['name']}`",
                         color = discord.Color.green()
                     )
                     reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
