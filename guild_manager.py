@@ -36,6 +36,10 @@ param_desc = {
         "usage": f'`{prefix}edit-guild leader "Гильдия" @Пользователь`',
         "example": f'`{prefix}edit-guild leader "Моя гильдия" @Пользователь`'
     },
+    "helper": {
+        "usage": f'`{prefix}edit-guild helper "Гильдия" @Пользователь`',
+        "example": f'`{prefix}edit-guild helper "Моя гильдия" @Пользователь`'
+    },
     "role": {
         "usage": f'`{prefix}edit-guild role "Гильдия" @Роль (или delete)`',
         "example": f'`{prefix}edit-guild role "Моя гильдия" delete`'
@@ -290,7 +294,7 @@ async def help(ctx):
     user_cmd_desc = (
         f"`{p}join-guild Гильдия` - *зайти в гильдию*\n"
         f"`{p}leave-guild` - *выйти из текущей гильдии*\n"
-        f"`{p}guilds` - *топ гильдий сервера*\n"
+        f"`{p}top messages или mentions` - *топ гильдий сервера*\n"
         f"`{p}guild-info Гильдия` - *посмотреть подробности гильдии*\n"
         f"`{p}guild-top Страница_топа Гильдия` - *топ участников гильдии*\n"
         f"`{p}user-info @Пользователь` - *посмотреть свой / чужой прогресс*\n"
@@ -565,6 +569,7 @@ async def create_guild(ctx, *, guild_name):
                                 "description": "Без описания",
                                 "avatar_url": default_avatar_url,
                                 "leader_id": ctx.author.id,
+                                "helper_id": None,
                                 "role_id": None,
                                 "private": False,
                                 "requests": [],
@@ -589,7 +594,7 @@ async def create_guild(ctx, *, guild_name):
                 await ctx.send(embed = reply)
 
 @commands.cooldown(1, 5, commands.BucketType.member)
-@client.command(aliases = ["edit-guild", "editguild", "eg"])
+@client.command(aliases = ["edit-guild", "editguild", "eg", "edit"])
 async def edit_guild(ctx, parameter, *, text_data = None):
     collection = db["subguilds"]
     parameter = parameter.lower()
@@ -598,6 +603,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
         "description": "description",
         "avatar": "avatar_url",
         "leader": "leader_id",
+        "helper": "helper_id",
         "role": "role_id",
         "privacy": "private"
     }
@@ -611,6 +617,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                 "> `description`\n"
                 "> `avatar`\n"
                 "> `leader`\n"
+                "> `helper`\n"
                 "> `role`\n"
                 "> `privacy`\n"
                 f'**Использование:** `{prefix}{ctx.command.name} Параметр "Название гильдии" [Новое значение]`\n'
@@ -672,20 +679,35 @@ async def edit_guild(ctx, parameter, *, text_data = None):
             else:
                 correct_arg = True
                 value = text
-                if parameter == "leader":
+                if parameter in ["leader", "helper"]:
                     value = detect.member(ctx.guild, text)
-                    if value == None:
+
+                    if text.lower() == "delete":
+                        value = None
+
+                    elif value == None:
                         correct_arg = False
 
                         reply = discord.Embed(
                             title = "💢 Ошибка",
                             description = f"Вы ввели {text}, подразумевая участника, но он не был найден",
-                            color = discord.Color.from_rgb(40, 40, 40)
+                            color = discord.Color.dark_red()
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                         await ctx.send(embed = reply)
+
+                    elif value.id == leader_id:
+                        reply = discord.Embed(
+                            title = "💢 Ошибка",
+                            description = f"{f_username(value)} является главой этой гильдии.",
+                            color = discord.Color.dark_red()
+                        )
+                        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                        await ctx.send(embed = reply)
+
                     else:
                         value = value.id
+                    
                 elif parameter == "role":
                     value = detect.role(ctx.guild, text)
                     if text.lower() == "delete":
@@ -742,7 +764,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
 
                     reply = discord.Embed(
                         title = "✅ Настроено",
-                        description = f"**->** Профиль гильдии: `{prefix}guild-info {subguild['name']}`",
+                        description = f"**->** Профиль гильдии: `{prefix}guild-info {f_username(subguild['name'])}`",
                         color = discord.Color.green()
                     )
                     reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -806,6 +828,7 @@ async def requests(ctx, page, *, guild_name):
         {"_id": ctx.guild.id, "subguilds.name": guild_name},
         projection={
             "subguilds.leader_id": True,
+            "subguilds.helper_id": True,
             "subguilds.requests": True,
             "subguilds.name": True,
             "subguilds.private": True
@@ -823,11 +846,11 @@ async def requests(ctx, page, *, guild_name):
         subguild = get_subguild(result, guild_name)
         del result
 
-        if ctx.author.id != subguild["leader_id"] and not has_permissions(ctx.author, ["administrator"]):
+        if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]):
             reply = discord.Embed(
                 title = "❌ Недостаточно прав",
                 description = (
-                    "Вы не являетесь администратором сервера или владельцем этой гильдии"
+                    "Вы не являетесь **администратором** сервера или **владельцем / помощником** этой гильдии"
                 ),
                 color = discord.Color.dark_red()
             )
@@ -886,11 +909,13 @@ async def requests(ctx, page, *, guild_name):
                 for i in range(first_num, last_num):
                     if req_list != None:
                         desc += f"**{i + 1})** {f_username(req_list[i])}\n"
+                
+                guild_name = f_username(guild_name)
+
                 reply = discord.Embed(
                     title = "Запросы на вступление",
                     description = (
                         f"**В гильдию:** {guild_name}\n"
-                        f"**Сервер:** {ctx.guild.name}\n"
                         f"**Принять запрос:** `{prefix}accept Номер_запроса {guild_name}`\n"
                         f"**Отклонить запрос:** `{prefix}decline Номер_запроса {guild_name}`\n\n"
                         f"{desc}"
@@ -916,6 +941,7 @@ async def accept(ctx, num, *, guild_name):
         {"_id": ctx.guild.id, "subguilds.name": guild_name},
         projection={
             "subguilds.leader_id": True,
+            "subguilds.helper_id": True,
             "subguilds.requests": True,
             "subguilds.name": True,
             "subguilds.private": True,
@@ -944,13 +970,13 @@ async def accept(ctx, num, *, guild_name):
                 id_list.append(ID)
         length = len(id_list)
 
-        if ctx.author.id != subguild["leader_id"] and not has_permissions(ctx.author, ["administrator"]):
+        if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]):
             correct_args = False
 
             reply = discord.Embed(
                 title = "❌ Недостаточно прав",
                 description = (
-                    "Вы не являетесь администратором сервера или владельцем этой гильдии"
+                    "Вы не являетесь **администратором** сервера или **владельцем / помощником** этой гильдии"
                 ),
                 color = discord.Color.dark_red()
             )
@@ -1042,6 +1068,7 @@ async def decline(ctx, num, *, guild_name):
         {"_id": ctx.guild.id, "subguilds.name": guild_name},
         projection={
             "subguilds.leader_id": True,
+            "subguilds.helper_id": True,
             "subguilds.requests": True,
             "subguilds.name": True,
             "subguilds.private": True
@@ -1069,13 +1096,13 @@ async def decline(ctx, num, *, guild_name):
                 id_list.append(ID)
         length = len(id_list)
 
-        if ctx.author.id != subguild["leader_id"] and not has_permissions(ctx.author, ["administrator"]):
+        if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]):
             correct_args = False
 
             reply = discord.Embed(
                 title = "❌ Недостаточно прав",
                 description = (
-                    "Вы не являетесь администратором сервера или владельцем этой гильдии"
+                    "Вы не являетесь **администратором** сервера или **владельцем / помощником** этой гильдии"
                 ),
                 color = discord.Color.dark_red()
             )
@@ -1504,11 +1531,11 @@ async def count_roles(ctx, *, text):
         subguild = get_subguild(result, guild_name)
         del result
 
-        if not has_permissions(ctx.author, ["administrator"]) and ctx.author.id != subguild["leader_id"]:
+        if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]):
             reply = discord.Embed(
                 title = "❌ Недостаточно прав",
                 description = (
-                    f"Вы не являетесь владельцем гильдии **{guild_name}** или администратором сервера"
+                    f"Вы не являетесь **владельцем / помощником** гильдии **{guild_name}** или администратором сервера"
                 ),
                 color = discord.Color.dark_red()
             )
@@ -1852,7 +1879,6 @@ async def guild_info(ctx, *, guild_name):
             total_mes += memb["messages"]
             total_memb += 1
         subguild["members"] = None
-        leader = client.get_user(subguild["leader_id"])
         
         reply = discord.Embed(
             title = subguild["name"],
@@ -1863,15 +1889,20 @@ async def guild_info(ctx, *, guild_name):
             color = discord.Color.green()
         )
         reply.set_thumbnail(url = subguild["avatar_url"])
-        reply.add_field(name = "🔰 Владелец", value = f_username(leader), inline=False)
-        reply.add_field(name = "👥 Всего участников", value = f"{total_memb}", inline=False)
-        reply.add_field(name = "`💬` Всего сообщений", value = f"{total_mes}", inline=False)
+        if subguild['leader_id'] != None:
+            leader = client.get_user(subguild["leader_id"])
+            reply.add_field(name = "💠 Владелец", value = f"> {f_username(leader)}", inline=False)
+        if subguild['helper_id'] != None:
+            helper = client.get_user(subguild["helper_id"])
+            reply.add_field(name = "🔰 Помощник", value = f"> {f_username(helper)}", inline=False)
+        reply.add_field(name = "👥 Всего участников", value = f"> {total_memb}", inline=False)
+        reply.add_field(name = "`💬` Всего сообщений", value = f"> {total_mes}", inline=False)
         if subguild["mentions"] > 0:
-            reply.add_field(name = "📯 Упоминаний", value = f"{subguild['mentions']}", inline = False)
+            reply.add_field(name = "📯 Упоминаний", value = f"> {subguild['mentions']}", inline = False)
         if subguild["role_id"] != None:
-            reply.add_field(name = "🎗 Роль", value = f"<@&{subguild['role_id']}>", inline = False)
+            reply.add_field(name = "🎗 Роль", value = f"> <@&{subguild['role_id']}>", inline = False)
         if subguild["private"]:
-            reply.add_field(name = "🔒 Приватность", value = "Вступление по заявкам")
+            reply.add_field(name = "🔒 Приватность", value = "> Вступление по заявкам")
         await ctx.send(embed = reply)
 
 @commands.cooldown(1, 5, commands.BucketType.member)
@@ -2089,6 +2120,7 @@ async def edit_guild_error(ctx, error):
                 "> `description`\n"
                 "> `avatar`\n"
                 "> `leader`\n"
+                "> `helper`\n"
                 "> `role`\n"
                 "> `privacy`\n"
                 f'**Использование:** `{prefix}{ctx.command.name} Параметр "Название гильдии" [Новое значение]`\n'
