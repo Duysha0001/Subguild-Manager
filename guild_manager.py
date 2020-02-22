@@ -909,13 +909,11 @@ async def requests(ctx, page, *, guild_name):
                 for i in range(first_num, last_num):
                     if req_list != None:
                         desc += f"**{i + 1})** {f_username(req_list[i])}\n"
-                
-                guild_name = f_username(guild_name)
 
                 reply = discord.Embed(
                     title = "Запросы на вступление",
                     description = (
-                        f"**В гильдию:** {guild_name}\n"
+                        f"**В гильдию:** {f_username(guild_name)}\n"
                         f"**Принять запрос:** `{prefix}accept Номер_запроса {guild_name}`\n"
                         f"**Отклонить запрос:** `{prefix}decline Номер_запроса {guild_name}`\n\n"
                         f"{desc}"
