@@ -359,7 +359,7 @@ async def settings(ctx):
         else:
             chan_desc = ""
             for ID in wl_channels:
-                chan_desc += f"{client.get_channel(ID).mention}\n"
+                chan_desc += f"> {client.get_channel(ID).mention}\n"
         
         collection = db["subguilds"]
         result = collection.find_one(
@@ -395,7 +395,7 @@ async def settings(ctx):
             title = "⚙ Текущие настройки сервера",
             description = (
                 f"**Каналы для команд бота:**\n"
-                f"> {chan_desc}\n"
+                f"{chan_desc}"
                 f"**Роль мастера гильдий:**\n"
                 f"> {mr_desc}\n"
                 f"**Вести подсчёт упоминаний от:**\n"
@@ -1934,15 +1934,19 @@ async def leave_guild(ctx):
 
 @commands.cooldown(1, 10, commands.BucketType.member)
 @client.command(aliases = ["top"])
-async def guilds(ctx, filtration = "messages"):
+async def guilds(ctx, filtration = "messages", *, extra = "пустую строку"):
     collection = db["subguilds"]
     filters = {
         "messages": "`💬`",
-        "mentions": "📯"
+        "mentions": "📯",
+        "members": "👥",
+        "roles": "🎗"
     }
     filtration = filtration.lower()
 
     result = collection.find_one({"_id": ctx.guild.id})
+    role = detect.role(ctx.guild, extra)
+
     if not filtration in filters:
         reply = discord.Embed(
             title = "💢 Ошибка",
@@ -1951,11 +1955,21 @@ async def guilds(ctx, filtration = "messages"):
                 f"Доступные фильтры:\n"
                 "> messages\n"
                 "> mentions\n"
+                "> members\n"
+                "> roles\n"
                 f"Или просто `{prefix}guilds`"
             )
         )
         await ctx.send(embed = reply)
-    
+    elif filtration == "roles" and role == None:
+        reply = discord.Embed(
+            title = "💢 Ошибка",
+            description = f"Вы ввели {extra}, подразумевая роль, но она не была найдена",
+            color = discord.Color.dark_red()
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
     elif result == None:
         lb = discord.Embed(
             title = f"Гильдии сервера {ctx.guild.name}",
@@ -1970,28 +1984,41 @@ async def guilds(ctx, filtration = "messages"):
         stats = []
         for subguild in subguilds:
             if filtration == "messages":
-                total_mes = 0
+                desc = "Фильтрация по количеству сообщений"
+                total = 0
                 for str_id in subguild["members"]:
                     memb = subguild["members"][str_id]
-                    total_mes += memb["messages"]
-            else:
-                total_mes = subguild["mentions"]
+                    total += memb["messages"]
+            elif filtration == "roles":
+                desc = f"Фильтрация по количеству участников, имеющих роль <@&{role.id}>"
+                total = 0
+                for key in subguild["members"]:
+                    memb = subguild["members"][key]
+                    member = ctx.guild.get_member(memb["id"])
+                    if member != None and role in member.roles:
+                        total += 1
+            elif filtration == "mentions":
+                desc = "Фильтрация по количеству упоминаний"
+                total = subguild["mentions"]
+            elif filtration == "members":
+                desc = "Фильтрация по количеству участников"
+                total = len(subguild["members"])
 
-            pair = (f"{subguild['name']}", total_mes)
+            pair = (f"{subguild['name']}", total)
             stats.append(pair)
         del result
         stats.sort(key=lambda i: i[1])
         stats.reverse()
 
-        desc = ""
+        table = ""
         for i in range(len(stats)):
             guild_name = f_username(stats[i][0])
-            total_mes = stats[i][1]
-            desc += f"**{i+1})** {guild_name} • **{total_mes}** {filters[filtration]}\n"
+            total = stats[i][1]
+            table += f"**{i+1})** {guild_name} • **{total}** {filters[filtration]}\n"
         
         lb = discord.Embed(
             title = f"Гильдии сервера {ctx.guild.name}",
-            description = f"Подробнее о гильдии: `{prefix}guild-info Название`\n\n{desc}",
+            description = f"{desc}\nПодробнее о гильдии: `{prefix}guild-info Название`\n\n{table}",
             color = discord.Color.dark_blue()
         )
         lb.set_thumbnail(url = f"{ctx.guild.icon_url}")
@@ -2161,7 +2188,7 @@ async def user_guild(ctx, user_s = None):
             stat_emb.add_field(name="🛡 Гильдия", value=f_username(subguild['name']), inline = False)
             stat_emb.add_field(name="`💬` Написано сообщений", value=f"{user_mes}", inline = False)
             stat_emb.add_field(name="🏅 Место", value=f"{place} / {len(pairs)}", inline = False)
-            stat_emb.set_author(name = f"Профиль 🔎 {f_username(user)}", icon_url = f"{user.avatar_url}")
+            stat_emb.set_author(name = f"Профиль 🔎 {user}", icon_url = f"{user.avatar_url}")
             stat_emb.set_thumbnail(url = subguild["avatar_url"])
             await ctx.send(embed = stat_emb)
 
