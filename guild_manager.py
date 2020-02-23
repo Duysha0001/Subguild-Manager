@@ -158,6 +158,8 @@ def has_roles(member, role_array):
     has_them = True
     if not has_permissions(member, ["administrator"]):
         for role in role_array:
+            if f"{type(role)}" == "<class 'bson.int64.Int64'>":
+                role = member.guild.get_role(role)
             if not role in member.roles:
                 has_them = False
                 break
@@ -314,6 +316,8 @@ async def help(ctx):
         f"`{p}settings` - *текущие настройки*\n"
         f"`{p}cmd-channels #канал-1 #канал-2 ...` - *настроить каналы реагирования*\n"
         f"‣—‣ `{p}cmd-channels delete` - *сбросить*\n"
+        f"`{p}master-role Роль` - *настроить роль мастера гильдий*\n"
+        f"‣—‣ `{p}master-role delete` - *сбросить*\n"
         f"`{p}members-limit Число` - *настроить лимит участников на гильдию*\n"
         f"`{p}reset-guilds messages / mentions` - *обнуляет либо упоминания, либо сообщения всех гильдий сервера*\n"
         f"`{p}ping-count @Пользователь` - *настраивает пользователя, пинги которого будут подсчитываться*\n"
@@ -324,7 +328,7 @@ async def help(ctx):
     )
     
     help_emb.add_field(name = "**Всем пользователям**", value = user_cmd_desc, inline=False)
-    help_emb.add_field(name = "**Главам гильдий**", value = owners_cmd_desc, inline=False)
+    help_emb.add_field(name = "**Главам гильдий / Мастерам гильдий**", value = owners_cmd_desc, inline=False)
     if has_permissions(ctx.author, ["administrator"]):
         help_emb.add_field(name = "**Администраторам**", value = adm_cmd_desc, inline=False)
     await ctx.send(embed = help_emb)
@@ -360,35 +364,45 @@ async def settings(ctx):
         collection = db["subguilds"]
         result = collection.find_one(
             {"_id": ctx.guild.id, "mentioner_id": {"$exists": True}},
-            projection={"mentioner_id": True, "member_limit": True}
+            projection={
+                "mentioner_id": True,
+                "member_limit": True,
+                "master_role_id": True
+            }
         )
         pinger_id = None
+        mr_id = None
         lim_desc = member_limit
         if result != None:
             if "mentioner_id" in result:
                 pinger_id = result["mentioner_id"]
             if "member_limit" in result:
                 lim_desc = result["member_limit"]
+            if "master_role_id" in result:
+                mr_id = result["master_role_id"]
         
         if pinger_id == None:
             ping_desc = "выключено"
         else:
             ping_desc = f"{client.get_user(pinger_id)}"
         
+        if mr_id == None:
+            mr_desc = "Отсутствует"
+        else:
+            mr_desc = f"<@&{mr_id}>"
+        
         reply = discord.Embed(
             title = "⚙ Текущие настройки сервера",
             description = (
                 f"**Каналы для команд бота:**\n"
                 f"> {chan_desc}\n"
+                f"**Роль мастера гильдий:**\n"
+                f"> {mr_desc}\n"
                 f"**Вести подсчёт упоминаний от:**\n"
                 f"> {ping_desc}\n"
                 f"**Лимит пользователей на гильдию:**\n"
                 f"> {lim_desc}\n\n"
-                f"-> Настроить каналы для команд: `{prefix}cmd-channels #канал-1 #канал-2 ...`\n"
-                f"---> Сбросить: `{prefix}cmd-channels delete`\n"
-                f"-> Настроить подсчёт упоминаний: `{prefix}ping-count @Участник`\n"
-                f"---> Сбросить: `{prefix}ping-count delete`\n"
-                f"-> Посмотреть топ гильдий: `{prefix}top`\n"
+                f"-> Список команд: `{prefix}help`"
             ),
             color = discord.Color.blurple()
         )
@@ -511,15 +525,85 @@ async def members_limit(ctx, lim):
         await ctx.send(embed = reply)
 
 @commands.cooldown(1, 10, commands.BucketType.member)
+@client.command(aliases = ["master-role", "masterrole", "mr"])
+async def master_role(ctx, *, r_search):
+    if not has_permissions(ctx.author, ["administrator"]):
+        reply = discord.Embed(
+            title = "❌ Недостаточно прав",
+            description = (
+                "Требуемые права:\n"
+                "> Администратор"
+            ),
+            color = discord.Color.dark_red()
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
+    else:
+        correct_arg = True
+        role = discord.utils.get(ctx.guild.roles, name = r_search)
+        if role == None:
+            role = detect.role(ctx.guild, r_search)
+        
+        if r_search.lower() == "delete":
+            value = None
+
+        elif role == None:
+            correct_arg = False
+            reply = discord.Embed(
+                title = "💢 Неверный аргумент",
+                description = f"Вы ввели {r_search}, подразумевая роль, но она не была найдена",
+                color = discord.Color.dark_red()
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+        else:
+            value = role.id
+        
+        if correct_arg:
+            collection = db["subguilds"]
+            collection.find_one_and_update(
+                {"_id": ctx.guild.id},
+                {"$set": {"master_role_id": value}},
+                upsert=True
+            )
+
+            desc = "Роль мастера гильдий удалена"
+            if value != None:
+                desc = f"Роль мастера гильдий: <@&{value}>"
+            reply = discord.Embed(
+                title = "✅ Настроено",
+                description = desc,
+                color = discord.Color.dark_green()
+            )
+            await ctx.send(embed = reply)
+
+@commands.cooldown(1, 10, commands.BucketType.member)
 @client.command(aliases = ["create-guild", "createguild", "cg"])
 async def create_guild(ctx, *, guild_name):
+    collection = db["subguilds"]
 
-    if not has_permissions(ctx.author, ["administrator"]):
+    result = collection.find_one(
+        {"_id": ctx.guild.id},
+        projection={
+            "_id": True,
+            "subguilds.name": True,
+            "master_role_id": True
+        }
+    )
+    mr_id = None
+    if result != None and "master_role_id" in result:
+        mr_id = result["master_role_id"]
+
+    if not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
         reply = discord.Embed(
             title = "💢 Недостаточно прав",
             description = (
                 "Требуемые права:\n"
-                "> Администратор"
+                "> Администратор\n"
+                "Или\n"
+                "> Мастер гильдий"
             ),
             color = discord.Color.from_rgb(40, 40, 40)
         )
@@ -527,12 +611,6 @@ async def create_guild(ctx, *, guild_name):
         await ctx.send(embed = reply)
     
     else:
-        collection = db["subguilds"]
-
-        result = collection.find_one(
-            {"_id": ctx.guild.id},
-            projection={"_id": True, "subguilds.name": True}
-        )
         total_guilds = 0
         if result != None:
             total_guilds = len(result["subguilds"])
@@ -655,6 +733,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
             filter={"_id": ctx.guild.id, "subguilds.name": guild_name},
             projection={"subguilds.members": False}
         )
+
         if result == None:
             reply = discord.Embed(
                 title = "💢 Ошибка",
@@ -666,11 +745,19 @@ async def edit_guild(ctx, parameter, *, text_data = None):
         else:
             subguild = get_subguild(result, guild_name)
             leader_id = subguild["leader_id"]
+            mr_id = None
+            if "master_role_id" in result:
+                mr_id = result["master_role_id"]
 
-            if ctx.author.id != leader_id and not has_permissions(ctx.author, ["administrator"]):
+            if ctx.author.id != leader_id and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
                 reply = discord.Embed(
                     title = "❌ Недостаточно прав",
-                    description = f"Вы не являетесь главой гильдии **{guild_name}** или администратором.",
+                    description = (
+                        f"Нужно быть одним из них:\n"
+                        f"> Глава гильдии {guild_name}\n"
+                        "> Мастер гильдий\n"
+                        "> Администратор"
+                    ),
                     color = discord.Color.dark_red()
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -776,8 +863,13 @@ async def delete_guild(ctx, *, guild_name):
     collection = db["subguilds"]
     result = collection.find_one(
         {"_id": ctx.guild.id, "subguilds.name": guild_name},
-        projection={"subguilds.name": True, "subguilds.leader_id": True}
+        projection={
+            "subguilds.name": True,
+            "subguilds.leader_id": True,
+            "master_role_id": True
+        }
     )
+
     if result == None:
         reply = discord.Embed(
             title = "💢 Упс",
@@ -789,13 +881,22 @@ async def delete_guild(ctx, *, guild_name):
         )
         await ctx.send(embed = reply)
     else:
+        mr_id = None
+        if "master_role_id" in result:
+            mr_id = result["master_role_id"]
+        
         subguild = get_subguild(result, guild_name)
         del result
 
-        if ctx.author.id != subguild["leader_id"] and not has_permissions(ctx.author, ["administrator"]):
+        if ctx.author.id != subguild["leader_id"] and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
             reply = discord.Embed(
                 title = "❌ Недостаточно прав",
-                description = f"Вы не являетесь главой гильдии **{guild_name}** или администратором",
+                description = (
+                    f"Нужно быть одним из них:\n"
+                    f"> Глава гильдии {guild_name}\n"
+                    "> Мастер гильдий\n"
+                    "> Администратор"
+                ),
                 color = discord.Color.dark_red()
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -827,6 +928,7 @@ async def requests(ctx, page, *, guild_name):
     result = collection.find_one(
         {"_id": ctx.guild.id, "subguilds.name": guild_name},
         projection={
+            "master_role_id": True,
             "subguilds.leader_id": True,
             "subguilds.helper_id": True,
             "subguilds.requests": True,
@@ -834,6 +936,7 @@ async def requests(ctx, page, *, guild_name):
             "subguilds.private": True
         }
     )
+    
     if result == None:
         reply = discord.Embed(
             title = "💢 Упс",
@@ -843,14 +946,21 @@ async def requests(ctx, page, *, guild_name):
         await ctx.send(embed = reply)
     
     else:
+        mr_id = None
+        if "master_role_id" in result:
+            mr_id = result["master_role_id"]
+        
         subguild = get_subguild(result, guild_name)
         del result
 
-        if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]):
+        if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
             reply = discord.Embed(
                 title = "❌ Недостаточно прав",
                 description = (
-                    "Вы не являетесь **администратором** сервера или **владельцем / помощником** этой гильдии"
+                    f"Нужно быть одним из них:\n"
+                    f"> Глава / помощник гильдии {guild_name}\n"
+                    "> Мастер гильдий\n"
+                    "> Администратор"
                 ),
                 color = discord.Color.dark_red()
             )
@@ -938,6 +1048,7 @@ async def accept(ctx, num, *, guild_name):
     result = collection.find_one(
         {"_id": ctx.guild.id, "subguilds.name": guild_name},
         projection={
+            "master_role_id": True,
             "subguilds.leader_id": True,
             "subguilds.helper_id": True,
             "subguilds.requests": True,
@@ -955,6 +1066,10 @@ async def accept(ctx, num, *, guild_name):
         await ctx.send(embed = reply)
     
     else:
+        mr_id = None
+        if "master_role_id" in result:
+            mr_id = result["master_role_id"]
+        
         subguild = get_subguild(result, guild_name)
         del result
 
@@ -968,13 +1083,16 @@ async def accept(ctx, num, *, guild_name):
                 id_list.append(ID)
         length = len(id_list)
 
-        if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]):
+        if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
             correct_args = False
 
             reply = discord.Embed(
                 title = "❌ Недостаточно прав",
                 description = (
-                    "Вы не являетесь **администратором** сервера или **владельцем / помощником** этой гильдии"
+                    f"Нужно быть одним из них:\n"
+                    f"> Глава / помощник гильдии {guild_name}\n"
+                    "> Мастер гильдий\n"
+                    "> Администратор"
                 ),
                 color = discord.Color.dark_red()
             )
@@ -1081,6 +1199,10 @@ async def decline(ctx, num, *, guild_name):
         await ctx.send(embed = reply)
     
     else:
+        mr_id = None
+        if "master_role_id" in result:
+            mr_id = result["master_role_id"]
+        
         subguild = get_subguild(result, guild_name)
         del result
 
@@ -1094,13 +1216,16 @@ async def decline(ctx, num, *, guild_name):
                 id_list.append(ID)
         length = len(id_list)
 
-        if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]):
+        if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
             correct_args = False
 
             reply = discord.Embed(
                 title = "❌ Недостаточно прав",
                 description = (
-                    "Вы не являетесь **администратором** сервера или **владельцем / помощником** этой гильдии"
+                    f"Нужно быть одним из них:\n"
+                    f"> Глава / помощник гильдии {guild_name}\n"
+                    "> Мастер гильдий\n"
+                    "> Администратор"
                 ),
                 color = discord.Color.dark_red()
             )
@@ -1220,6 +1345,7 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
         result = collection.find_one(
             {"_id": ctx.guild.id, "subguilds.name": guild_name},
             projection={
+                "master_role_id": True,
                 "subguilds.name": True,
                 "subguilds.members": True,
                 "subguilds.role_id": True,
@@ -1235,13 +1361,22 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
         else:
+            mr_id = None
+            if "master_role_id" in result:
+                mr_id = result["master_role_id"]
+            
             subguild = get_subguild(result, guild_name)
             del result
 
-            if not has_permissions(ctx.author, ["administrator"]) and ctx.author.id != subguild["leader_id"]:
+            if not has_permissions(ctx.author, ["administrator"]) and ctx.author.id != subguild["leader_id"] and not has_roles(ctx.author, [mr_id]):
                 reply = discord.Embed(
                     title = "❌ Недостаточно прав",
-                    description = "Вы не являетесь администратором сервера или главой этой гильдии",
+                    description = (
+                        f"Нужно быть одним из них:\n"
+                        f"> Глава гильдии {guild_name}\n"
+                        "> Мастер гильдий\n"
+                        "> Администратор"
+                    ),
                     color = discord.Color.dark_red()
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1511,9 +1646,11 @@ async def count_roles(ctx, *, text):
     result = collection.find_one(
         {"_id": ctx.guild.id, "subguilds.name": guild_name},
         projection={
+            "master_role_id": True,
             "subguilds.name": True,
             "subguilds.members": True,
-            "subguilds.leader_id": True
+            "subguilds.leader_id": True,
+            "subguilds.helper_id": True
         }
     )
     if result == None:
@@ -1526,14 +1663,21 @@ async def count_roles(ctx, *, text):
         await ctx.send(embed = reply)
     
     else:
+        mr_id = None
+        if "master_role_id" in result:
+            mr_id = result["master_role_id"]
+        
         subguild = get_subguild(result, guild_name)
         del result
 
-        if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]):
+        if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
             reply = discord.Embed(
                 title = "❌ Недостаточно прав",
                 description = (
-                    f"Вы не являетесь **владельцем / помощником** гильдии **{guild_name}** или администратором сервера"
+                    f"Нужно быть одним из них:\n"
+                    f"> Глава / помощник гильдии {guild_name}\n"
+                    "> Мастер гильдий\n"
+                    "> Администратор"
                 ),
                 color = discord.Color.dark_red()
             )
