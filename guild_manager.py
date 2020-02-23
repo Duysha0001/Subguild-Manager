@@ -359,7 +359,7 @@ async def settings(ctx):
         else:
             chan_desc = ""
             for ID in wl_channels:
-                chan_desc += f"{client.get_channel(ID).mention}"
+                chan_desc += f"{client.get_channel(ID).mention}\n"
         
         collection = db["subguilds"]
         result = collection.find_one(
