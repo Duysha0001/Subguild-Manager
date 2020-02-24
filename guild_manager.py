@@ -1349,7 +1349,8 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
                 "subguilds.name": True,
                 "subguilds.members": True,
                 "subguilds.role_id": True,
-                "subguilds.leader_id": True
+                "subguilds.leader_id": True,
+                "subguilds.helper_id": True
             }
         )
         if result == None:
@@ -1368,12 +1369,12 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
             subguild = get_subguild(result, guild_name)
             del result
 
-            if not has_permissions(ctx.author, ["administrator"]) and ctx.author.id != subguild["leader_id"] and not has_roles(ctx.author, [mr_id]):
+            if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
                 reply = discord.Embed(
                     title = "❌ Недостаточно прав",
                     description = (
                         f"Нужно быть одним из них:\n"
-                        f"> Глава гильдии {guild_name}\n"
+                        f"> Глава / помощник гильдии {guild_name}\n"
                         "> Мастер гильдий\n"
                         "> Администратор"
                     ),
