@@ -87,6 +87,14 @@ def carve_int(string):
         out = int(out)
     return out
 
+def is_int(string):
+    out = True
+    try:
+        int(string)
+    except ValueError:
+        out = False
+    return out
+
 def get_subguild(collection_part, subguild_name):
     out = None
     if "subguilds" in collection_part:
@@ -268,10 +276,21 @@ async def on_member_remove(member):
         {"$pull": {"subguilds": {"leader_id": member.id}}}
     )
     collection.find_one_and_update(
-        {"_id": member.guild.id, f"subguilds.members.{member.id}.id": member.id},
+        {"_id": member.guild.id, f"subguilds.members.{member.id}": {"$exists": True}},
         {
             "$unset": {f"subguilds.$.members.{member.id}": ""},
             "$pull": {f"subguilds.$.requests": member.id}
+        }
+    )
+
+@client.event
+async def on_member_ban(guild, member):
+    collection = db["subguilds"]
+    collection.find_one_and_update(
+        {"_id": guild.id, f"subguilds.members.{member.id}": {"$exists": True}},
+        {
+            "$inc": {"subguilds.$.reputation": -25},
+            "$unset": {f"subguilds.$.members.{member.id}": ""}
         }
     )
 
@@ -290,19 +309,19 @@ async def logout(ctx):
         await client.logout()
 
 @commands.cooldown(1, 5, commands.BucketType.member)
-@client.command()
+@client.command(aliases = ["info", "commands"])
 async def help(ctx):
     p = prefix
     user_cmd_desc = (
         f"`{p}join-guild Гильдия` - *зайти в гильдию*\n"
         f"`{p}leave-guild` - *выйти из текущей гильдии*\n"
-        f"`{p}top messages или mentions` - *топ гильдий сервера*\n"
+        f"`{p}top` - *топ гильдий сервера*\n"
+        f"‣—‣ `{p}top mentions / members / roles / reputation` - *другие фильтры топа*\n"
         f"`{p}guild-info Гильдия` - *посмотреть подробности гильдии*\n"
         f"`{p}guild-top Страница_топа Гильдия` - *топ участников гильдии*\n"
         f"`{p}user-info @Пользователь` - *посмотреть свой / чужой прогресс*\n"
     )
     owners_cmd_desc = (
-        f"`{p}create-guild Название` - *создаёт гильдию*\n"
         f'`{p}edit-guild Параметр "Гильдия" Новое значение` - *подробнее: `{p}edit-guild`*\n'
         f"`{p}delete-guild Гильдия` - *удаляет гильдию*\n"
         f"`{p}requests Страница Гильдия` - *список заявок на вступление в гильдию*\n"
@@ -311,6 +330,9 @@ async def help(ctx):
         f"‣—‣ `{p}accept/decline all Гильдия` - *принять/отклонить все заявки*\n"
         f"`{p}kick Параметр Значение Гильдия` - *кик разных калибров, подробнее: `{p}kick`*\n"
         f'`{p}count-roles "Название гильдии" @Роль1 @Роль2 ...` - *подсчёт членов гильдии с каждой ролью*\n'
+        "> Только мастерам:"
+        f"`{p}create-guild Название` - *создаёт гильдию*\n"
+        f"`{p}rep Параметр Число Гильдия` - *действия с репутацией, подробнее: `{p}rep`*\n"
     )
     adm_cmd_desc = (
         f"`{p}settings` - *текущие настройки*\n"
@@ -355,7 +377,7 @@ async def settings(ctx):
             wl_channels = result["channels"]
         
         if wl_channels == None:
-            chan_desc = "Все каналы"
+            chan_desc = "> Все каналы\n"
         else:
             chan_desc = ""
             for ID in wl_channels:
@@ -579,6 +601,113 @@ async def master_role(ctx, *, r_search):
             )
             await ctx.send(embed = reply)
 
+@commands.cooldown(1, 5, commands.BucketType.member)
+@client.command(aliases = ["rep"])
+async def reputation(ctx, param, value=None, *, guild_name=None):
+    param = param.lower()
+    params = {
+        "change": {
+            "usage": f"`{prefix}rep change Кол-во Гильдия`",
+            "example": f"`{prefix}rep change 10 Гильдия`",
+            "info": "Изменяет репутацию гильдии на указанное кол-во очков"
+        },
+        "set": {
+            "usage": f"`{prefix}rep set Кол-во Гильдия`",
+            "example": f"`{prefix}rep set 70 Гильдия`",
+            "info": "Устанавливает у гильдии указанную репутацию"
+        }
+    }
+
+    if not param in params:
+        reply = discord.Embed(
+            title = "📑 Неверный параметр",
+            description = (
+                f"Вы ввели: `{param}`\n"
+                f"Доступные параметры:\n"
+                "> `change`\n"
+                "> `set`\n"
+                f"Подробнее: `{prefix}rep change / set`"
+            ),
+            color = discord.Color.dark_red()
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
+    elif value == None or guild_name == None:
+        param_desc = params[param]
+        reply = discord.Embed(
+            title = f"❓ {prefix}rep {param}",
+            description = (
+                f"**Использование:** {param_desc['usage']}\n"
+                f"**Пример:** {param_desc['example']}\n"
+                f"-> {param_desc['info']}"
+            )
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
+    elif not is_int(value):
+        reply = discord.Embed(
+            title = "💢 Неверный аргуметн",
+            description = f"Входной аргумент {value} должен быть целым числом",
+            color = discord.Color.dark_red()
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
+    else:
+        collection = db["subguilds"]
+
+        result = collection.find_one(
+            {"_id": ctx.guild.id, "subguilds.name": guild_name},
+            projection={"master_role_id": True}
+        )
+        
+        if result == None:
+            reply = discord.Embed(
+                title = "💢 Упс",
+                description = (
+                    f"На сервере нет гильдий с названием **{guild_name}**\n"
+                    f"Список гильдий: `{prefix}guilds`"
+                ),
+                color = discord.Color.from_rgb(40, 40, 40)
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        
+        else:
+            mr_id = None
+            if "master_role_id" in result:
+                mr_id = result["master_role_id"]
+            if not has_roles(ctx.author, [mr_id]) and not has_permissions(ctx.author, ["administrator"]):
+                reply = discord.Embed(
+                    title = "❌ Недостаточно прав",
+                    description = (
+                        "**Нужно быть одним из них:**\n"
+                        "> Администратор\n"
+                        "> Мастер гильдий"
+                    ),
+                    color = discord.Color.dark_red()
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
+
+            else:
+                if param == "change":
+                    updates = {"$inc": {"subguilds.$.reputation": int(value)}}
+                elif param == "set":
+                    updates = {"$set": {"subguilds.$.reputation": int(value)}}
+                collection.find_one_and_update(
+                    {"_id": ctx.guild.id, "subguilds.name": guild_name},
+                    updates
+                )
+                reply = discord.Embed(
+                    title = "✅ Выполнено",
+                    description = f"Репутация гильдии изменена.\nПрофиль: `{prefix}guild-info {guild_name}`",
+                    color = discord.Color.dark_green()
+                )
+                await ctx.send(embed = reply)
+
 @commands.cooldown(1, 10, commands.BucketType.member)
 @client.command(aliases = ["create-guild", "createguild", "cg"])
 async def create_guild(ctx, *, guild_name):
@@ -651,6 +780,7 @@ async def create_guild(ctx, *, guild_name):
                                 "role_id": None,
                                 "private": False,
                                 "requests": [],
+                                "reputation": 100,
                                 "mentions": 0,
                                 "members": {}
                             }
@@ -920,7 +1050,7 @@ async def delete_guild(ctx, *, guild_name):
             await ctx.send(embed = reply)
 
 @commands.cooldown(1, 5, commands.BucketType.member)
-@client.command(aliases = ["req"])
+@client.command(aliases = ["req", "request"])
 async def requests(ctx, page, *, guild_name):
     collection = db["subguilds"]
     interval = 20
@@ -1726,7 +1856,7 @@ async def count_roles(ctx, *, text):
                 await ctx.send(embed = reply)
 
 @commands.cooldown(1, 30, commands.BucketType.member)
-@client.command(aliases = ["join-guild", "joinguild", "jg"])
+@client.command(aliases = ["join-guild", "joinguild", "jg", "join"])
 async def join_guild(ctx, *, guild_name):
     collection = db["subguilds"]
 
@@ -1868,7 +1998,7 @@ async def join_guild(ctx, *, guild_name):
                     await ctx.send(embed = reply)
 
 @commands.cooldown(1, 30, commands.BucketType.member)
-@client.command(aliases = ["leave-guild", "leaveguild", "lg"])
+@client.command(aliases = ["leave-guild", "leaveguild", "lg", "leave"])
 async def leave_guild(ctx):
     collection = db["subguilds"]
 
@@ -1941,7 +2071,8 @@ async def guilds(ctx, filtration = "messages", *, extra = "пустую стро
         "messages": "`💬`",
         "mentions": "📯",
         "members": "👥",
-        "roles": "🎗"
+        "roles": "🎗",
+        "reputation": "🔅"
     }
     filtration = filtration.lower()
 
@@ -2004,6 +2135,9 @@ async def guilds(ctx, filtration = "messages", *, extra = "пустую стро
             elif filtration == "members":
                 desc = "Фильтрация по количеству участников"
                 total = len(subguild["members"])
+            elif filtration == "reputation":
+                desc = "Фильтрация по репутации"
+                total = subguild["reputation"]
 
             pair = (f"{subguild['name']}", total)
             stats.append(pair)
@@ -2070,10 +2204,11 @@ async def guild_info(ctx, *, guild_name):
             reply.add_field(name = "🔰 Помощник", value = f"> {f_username(helper)}", inline=False)
         reply.add_field(name = "👥 Всего участников", value = f"> {total_memb}", inline=False)
         reply.add_field(name = "`💬` Всего сообщений", value = f"> {total_mes}", inline=False)
+        reply.add_field(name = "🔅 Репутация", value = f"> {subguild['reputation']}", inline=False)
         if subguild["mentions"] > 0:
-            reply.add_field(name = "📯 Упоминаний", value = f"> {subguild['mentions']}", inline = False)
+            reply.add_field(name = "📯 Упоминаний", value = f"> {subguild['mentions']}", inline=False)
         if subguild["role_id"] != None:
-            reply.add_field(name = "🎗 Роль", value = f"> <@&{subguild['role_id']}>", inline = False)
+            reply.add_field(name = "🎗 Роль", value = f"> <@&{subguild['role_id']}>", inline=False)
         if subguild["private"]:
             reply.add_field(name = "🔒 Приватность", value = "> Вступление по заявкам")
         await ctx.send(embed = reply)
@@ -2470,6 +2605,26 @@ async def kick_error(ctx, error):
                 "> `last`\n"
                 f"**Пример:** `{prefix}{ctx.command.name} user @Участник Моя гильдия`\n"
                 f"**Подробнее:** `{prefix}{ctx.command.name} user (или under и last)`"
+            ),
+            color = discord.Color.from_rgb(40, 40, 40)
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
+@reputation.error
+async def reputation_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        reply = discord.Embed(
+            title = "📑 Об аргументах",
+            description = (
+                f'**Использование:** `{prefix}{ctx.command.name} Параметр Число Гильдия`\n'
+                "**Параметры:**\n"
+                "> `change`\n"
+                "> `set`\n"
+                f"**Пример:** `{prefix}{ctx.command.name} change 10 Гильдия`\n"
+                "**Подробнее:**\n"
+                f"`{prefix}{ctx.command.name} change`\n"
+                f"`{prefix}{ctx.command.name} set`\n"
             ),
             color = discord.Color.from_rgb(40, 40, 40)
         )
