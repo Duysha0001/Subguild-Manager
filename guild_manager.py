@@ -258,6 +258,8 @@ class detect:
         if ID == None:
             ID = 0
         role = guild.get_role(ID)
+        if role == None:
+            role = discord.utils.get(guild.roles, name=search)
         return role
 
 @client.event
