@@ -674,12 +674,14 @@ async def reputation(ctx, param, value=None, *, text_data=None):
         "change": {
             "usage": f"`{prefix}rep change Кол-во Гильдия`",
             "example": f"`{prefix}rep change 10 Гильдия`",
-            "info": "Изменяет репутацию гильдии на указанное кол-во очков"
+            "info": "Изменяет репутацию гильдии на указанное кол-во очков",
+            "log": "Изменено"
         },
         "set": {
             "usage": f"`{prefix}rep set Кол-во Гильдия`",
             "example": f"`{prefix}rep set 70 Гильдия`",
-            "info": "Устанавливает у гильдии указанную репутацию"
+            "info": "Устанавливает у гильдии указанную репутацию",
+            "log": "Установлено"
         }
     }
 
@@ -768,30 +770,32 @@ async def reputation(ctx, param, value=None, *, text_data=None):
                 await ctx.send(embed = reply)
 
             else:
-                if param == "change":
-                    mode = "$inc"
-                    act = "Изменение"
-                elif param == "set":
-                    mode = "$set"
-                    act = "Установлено"
-                
                 log = {
                     "guild": guild_name,
                     "changer_id": ctx.author.id,
                     "reason": text,
-                    "action": act,
+                    "action": params[param]["log"],
                     "value": int(value)
                 }
                 rep_logs.append(log)
                 lll = len(rep_logs)
-                rep_logs = rep_logs[lll-10:lll]
-
+                if lll > 10:
+                    rep_logs = rep_logs[lll-10:lll]
+                
+                if param == "change":
+                    to_update = {
+                        "$inc": {"subguilds.$.reputation": int(value)},
+                        "$set": {"rep_logs": rep_logs}
+                    }
+                elif param == "set":
+                    to_update = {
+                        "$set": {"subguilds.$.reputation": int(value),
+                        "rep_logs": rep_logs}
+                    }
+                
                 collection.find_one_and_update(
                     {"_id": ctx.guild.id, "subguilds.name": guild_name},
-                    {
-                        mode: {"subguilds.$.reputation": int(value)},
-                        "$set": {"rep_logs": rep_logs}
-                    },
+                    to_update,
                     upsert=True
                 )
 
