@@ -851,7 +851,7 @@ async def rep_logs(ctx):
                 f"{log['action']} на **{log['value']}** 🔅\n"
                 f"Причина: {log['reason']}"
             )
-            log_emb.add_field(name=f"💠 **Гильдия:** {log['guild']}", value=desc)
+            log_emb.add_field(name=f"💠 **Гильдия:** {log['guild']}", value=desc, inline=False)
         await ctx.send(embed=log_emb)
 
 @commands.cooldown(1, 10, commands.BucketType.member)
