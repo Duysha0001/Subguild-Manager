@@ -21,32 +21,32 @@ db = cluster["guild_data"]
 #========Lists and values=========
 param_desc = {
     "name": {
-        "usage": f'`{prefix}edit-guild name "Старое название" Новое название`',
-        "example": f'`{prefix}edit-guild name "Моя гильдия" Лучшая гильдия`'
+        "usage": f'`{prefix}edit-guild name [Старое название] Новое название`',
+        "example": f'`{prefix}edit-guild name [Моя гильдия] Лучшая гильдия`'
     },
     "description": {
-        "usage": f'`{prefix}edit-guild description "Гильдия" Новое описание`',
-        "example": f'`{prefix}edit-guild description "Моя гильдия" Для тех, кто любит общаться`'
+        "usage": f'`{prefix}edit-guild description [Гильдия] Новое описание`',
+        "example": f'`{prefix}edit-guild description [Моя гильдия] Для тех, кто любит общаться`'
     },
     "avatar": {
-        "usage": f'`{prefix}edit-guild avatar "Гильдия" Ссылка`',
-        "example": f'`{prefix}edit-guild avatar "Моя гильдия" {default_avatar_url}`'
+        "usage": f'`{prefix}edit-guild avatar [Гильдия] Ссылка`',
+        "example": f'`{prefix}edit-guild avatar [Моя гильдия] {default_avatar_url}`'
     },
     "leader": {
-        "usage": f'`{prefix}edit-guild leader "Гильдия" @Пользователь`',
-        "example": f'`{prefix}edit-guild leader "Моя гильдия" @Пользователь`'
+        "usage": f'`{prefix}edit-guild leader [Гильдия] @Пользователь`',
+        "example": f'`{prefix}edit-guild leader [Моя гильдия] @Пользователь`'
     },
     "helper": {
-        "usage": f'`{prefix}edit-guild helper "Гильдия" @Пользователь`',
-        "example": f'`{prefix}edit-guild helper "Моя гильдия" @Пользователь`'
+        "usage": f'`{prefix}edit-guild helper [Гильдия] @Пользователь`',
+        "example": f'`{prefix}edit-guild helper [Моя гильдия] @Пользователь`'
     },
     "role": {
-        "usage": f'`{prefix}edit-guild role "Гильдия" @Роль (или delete)`',
-        "example": f'`{prefix}edit-guild role "Моя гильдия" delete`'
+        "usage": f'`{prefix}edit-guild role [Гильдия] @Роль (или delete)`',
+        "example": f'`{prefix}edit-guild role [Моя гильдия] delete`'
     },
     "privacy": {
-        "usage": f'`{prefix}edit-guild privacy "Гильдия" on / off`',
-        "example": f'`{prefix}edit-guild privacy "Моя гильдия" on`'
+        "usage": f'`{prefix}edit-guild privacy [Гильдия] on / off`',
+        "example": f'`{prefix}edit-guild privacy [Моя гильдия] on`'
     }
 }
 
