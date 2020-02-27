@@ -2340,6 +2340,16 @@ async def global_top(ctx, page="1"):
             await ctx.send(embed=reply)
         
         else:
+            place = None
+            for i in range(length):
+                if pairs[i][0] == ctx.author.id:
+                    place = i
+                    break
+            if place == None:
+                auth_desc = "Вас нет в этом топе, так как Вы не состоите ни в одной гильдии"
+            else:
+                auth_desc = f"Ваше место в топе: **{place+1} / {length}**"
+            
             first_num = interval * (page-1)
             last_num = min(length, interval * page)
 
@@ -2350,11 +2360,11 @@ async def global_top(ctx, page="1"):
             
             reply = discord.Embed(
                 title = f"Топ всех участников гильдий сервера\n{ctx.guild.name}",
-                description = desc,
+                description = f"{auth_desc}\n{desc}",
                 color = discord.Color.dark_magenta()
             )
             reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
-            reply.set_footer(text=f"Стр. {page}/{total_pages}")
+            reply.set_footer(text=f"Стр. {page}/{total_pages} | {ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
 
 @commands.cooldown(1, 5, commands.BucketType.member)
