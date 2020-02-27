@@ -384,6 +384,7 @@ async def help(ctx):
         f"`{p}guild-info Гильдия` - *посмотреть подробности гильдии*\n"
         f"`{p}guild-top Страница_топа Гильдия` - *топ участников гильдии*\n"
         f"`{p}user-info @Пользователь` - *посмотреть свой / чужой прогресс*\n"
+        f"`{p}global-top Страница` - *топ всех участников всех гильдий*\n"
     )
     owners_cmd_desc = (
         f'`{p}edit-guild Параметр [Гильдия] Новое значение` - *подробнее: `{p}edit-guild`*\n'
@@ -2202,8 +2203,8 @@ async def leave_guild(ctx):
                 await ctx.send(embed = reply)
 
 @commands.cooldown(1, 10, commands.BucketType.member)
-@client.command(aliases = ["top"])
-async def guilds(ctx, filtration = "messages", *, extra = "пустую строку"):
+@client.command(aliases = ["guilds"])
+async def top(ctx, filtration = "messages", *, extra = "пустую строку"):
     collection = db["subguilds"]
     filters = {
         "messages": "`💬`",
@@ -2296,6 +2297,65 @@ async def guilds(ctx, filtration = "messages", *, extra = "пустую стро
         )
         lb.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = lb)
+
+@commands.cooldown(1, 10, commands.BucketType.member)
+@client.command(aliases = ["global-top", "globaltop", "glt"])
+async def global_top(ctx, page="1"):
+    collection = db["subguilds"]
+    interval = 15
+
+    if not page.isdigit():
+        reply = discord.Embed(
+            title = "💢 Ошибка",
+            description = f"Входной аргумент {page} должен быть целым числом",
+            color = discord.Color.dark_red()
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+        await ctx.send(embed=reply)
+    
+    else:
+        page = int(page)
+        result = collection.find_one(
+            {"_id": ctx.guild.id},
+            projection={"subguilds.members": True}
+        )
+
+        pairs = []
+        if result != None and "subguilds" in result:
+            for sg in result["subguilds"]:
+                for key in sg["members"]:
+                    memb = sg["members"][key]
+                    pairs.append((memb["id"], memb["messages"]))
+        pairs.sort(key=lambda i: i[1], reverse=True)
+
+        length = len(pairs)
+        total_pages = (length-1) // interval + 1
+        if page > total_pages:
+            reply = discord.Embed(
+                title = "💢 Упс",
+                description = f"Страница не найдена. Всего страниц: **{total_pages}**",
+                color = discord.Color.dark_red()
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            await ctx.send(embed=reply)
+        
+        else:
+            first_num = interval * (page-1)
+            last_num = min(length, interval * page)
+
+            desc = ""
+            for i in range(first_num, last_num):
+                user = ctx.guild.get_member(pairs[i][0])
+                desc += f"**{i+1})** {f_username(user)} • {pairs[i][1]} `💬`\n"
+            
+            reply = discord.Embed(
+                title = f"Топ всех участников гильдий сервера\n{ctx.guild.name}",
+                description = desc,
+                color = discord.Color.dark_magenta()
+            )
+            reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
+            reply.set_footer(text=f"Стр. {page}/{total_pages}")
+            await ctx.send(embed=reply)
 
 @commands.cooldown(1, 5, commands.BucketType.member)
 @client.command(aliases = ["guild-info", "guildinfo", "gi"])
