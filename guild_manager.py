@@ -2620,7 +2620,7 @@ async def on_message(message):
                             Si, Mi = total_mes, total_memb
                         
                     if sg_found:
-                        income = round(10 * (((M+10) / (Mi+10))**(1/3) * ((S+10) / (Si+10))**(1/2)))
+                        income = round(10 * (((M+10) / (Mi+10))**(1/4) * ((S+10) / (Si+10))**(1/2)))
 
                         collection.find_one_and_update(
                             {
