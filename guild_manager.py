@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord.ext.commands import Bot
 import asyncio
 import os
+import datetime
 
 import pymongo
 from pymongo import MongoClient
@@ -51,6 +52,8 @@ param_desc = {
 }
 
 owner_ids = [301295716066787332]
+
+exp_buffer = {"last_clean": datetime.datetime.utcnow()}
 
 guild_limit = 30
 member_limit = 500
@@ -407,7 +410,7 @@ async def help(ctx):
         f"`{p}master-role Роль` - *настроить роль мастера гильдий*\n"
         f"‣—‣ `{p}master-role delete` - *сбросить*\n"
         f"`{p}members-limit Число` - *настроить лимит участников на гильдию*\n"
-        f"`{p}reset-guilds messages / mentions` - *обнуляет либо упоминания, либо сообщения всех гильдий сервера*\n"
+        f"`{p}reset-guilds exp / mentions` - *обнуляет либо упоминания, либо сообщения всех гильдий сервера*\n"
         f"`{p}ping-count @Пользователь` - *настраивает пользователя, пинги которого будут подсчитываться*\n"
     )
     help_emb = discord.Embed(
@@ -852,7 +855,7 @@ async def rep_logs(ctx):
                 f"{log['action']} на **{log['value']}** 🔅\n"
                 f"Причина: {log['reason']}"
             )
-            log_emb.add_field(name=f"💠 **Гильдия:** {log['guild']}", value=desc, inline=False)
+            log_emb.add_field(name=f"💠 **Гильдия:** {log['guild']}", value=desc, inline = False)
         await ctx.send(embed=log_emb)
 
 @commands.cooldown(1, 10, commands.BucketType.member)
@@ -1843,7 +1846,7 @@ async def ping_count(ctx, u_search):
 @client.command(aliases = ["reset-guilds", "resetguilds", "rg"])
 async def reset_guilds(ctx, parameter):
     collection = db["subguilds"]
-    params = ["messages", "mentions"]
+    params = ["exp", "mentions"]
     parameter = parameter.lower()
 
     if not has_permissions(ctx.author, ["administrator"]):
@@ -1862,9 +1865,9 @@ async def reset_guilds(ctx, parameter):
             title = "💢 Неверный параметр",
             description = (
                 "Доступные параметры:\n"
-                "> `messages`\n"
+                "> `exp`\n"
                 "> `mentions`\n"
-                f"Например `{prefix}reset-guilds messages`"
+                f"Например `{prefix}reset-guilds exp`"
             ),
             color = discord.Color.dark_grey()
         )
@@ -1882,7 +1885,7 @@ async def reset_guilds(ctx, parameter):
             description = "Сброс упоминаний закончен",
             color = discord.Color.green()
         )
-    elif parameter == "messages":
+    elif parameter == "exp":
         result = collection.find_one(
             {"_id": ctx.guild.id},
             projection = {"subguilds.name": True, "subguilds.members": True}
@@ -2204,10 +2207,10 @@ async def leave_guild(ctx):
 
 @commands.cooldown(1, 10, commands.BucketType.member)
 @client.command(aliases = ["guilds"])
-async def top(ctx, filtration = "messages", *, extra = "пустую строку"):
+async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
     collection = db["subguilds"]
     filters = {
-        "messages": "`💬`",
+        "exp": "✨",
         "mentions": "📯",
         "members": "👥",
         "roles": "🎗",
@@ -2224,10 +2227,11 @@ async def top(ctx, filtration = "messages", *, extra = "пустую строк�
             description = (
                 f"Нет фильтра `{filtration}`\n"
                 f"Доступные фильтры:\n"
-                "> messages\n"
-                "> mentions\n"
-                "> members\n"
-                "> roles\n"
+                "> `exp`\n"
+                "> `mentions`\n"
+                "> `members`\n"
+                "> `reputation`\n"
+                "> `roles`\n"
                 f"Или просто `{prefix}guilds`"
             )
         )
@@ -2254,8 +2258,8 @@ async def top(ctx, filtration = "messages", *, extra = "пустую строк�
 
         stats = []
         for subguild in subguilds:
-            if filtration == "messages":
-                desc = "Фильтрация по количеству сообщений"
+            if filtration == "exp":
+                desc = "Фильтрация по количеству опыта"
                 total = 0
                 for str_id in subguild["members"]:
                     memb = subguild["members"][str_id]
@@ -2356,11 +2360,11 @@ async def global_top(ctx, page="1"):
             desc = ""
             for i in range(first_num, last_num):
                 user = ctx.guild.get_member(pairs[i][0])
-                desc += f"**{i+1})** {f_username(user)} • {pairs[i][1]} `💬`\n"
+                desc += f"**{i+1})** {f_username(user)} • {pairs[i][1]} ✨\n"
             
             reply = discord.Embed(
                 title = f"Топ всех участников гильдий сервера\n{ctx.guild.name}",
-                description = f"{auth_desc}\n{desc}",
+                description = f"{auth_desc}\n\n{desc}",
                 color = discord.Color.dark_magenta()
             )
             reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
@@ -2411,7 +2415,7 @@ async def guild_info(ctx, *, guild_name):
             helper = client.get_user(subguild["helper_id"])
             reply.add_field(name = "🔰 Помощник", value = f"> {f_username(helper)}", inline=False)
         reply.add_field(name = "👥 Всего участников", value = f"> {total_memb}", inline=False)
-        reply.add_field(name = "`💬` Всего сообщений", value = f"> {total_mes}", inline=False)
+        reply.add_field(name = "✨ Всего опыта", value = f"> {total_mes}", inline=False)
         reply.add_field(name = "🔅 Репутация", value = f"> {subguild['reputation']}", inline=False)
         if subguild["mentions"] > 0:
             reply.add_field(name = "📯 Упоминаний", value = f"> {subguild['mentions']}", inline=False)
@@ -2478,7 +2482,7 @@ async def guild_members(ctx, page_num, *, guild_name):
                 for i in range(interval*(page_num-1), last_num):
                     pair = pairs[i]
                     user = get_member(ctx.guild, pair[0])
-                    desc += f"**{i + 1})** {f_username(user)} • {pair[1]} `💬`\n"
+                    desc += f"**{i + 1})** {f_username(user)} • {pair[1]} ✨\n"
                 
                 lb = discord.Embed(
                     title = f"🔎 Участники гильдии {guild_name}",
@@ -2530,7 +2534,7 @@ async def user_guild(ctx, user_s = None):
 
             stat_emb = discord.Embed(color = discord.Color.blue())
             stat_emb.add_field(name="🛡 Гильдия", value=f_username(subguild['name']), inline = False)
-            stat_emb.add_field(name="`💬` Написано сообщений", value=f"{user_mes}", inline = False)
+            stat_emb.add_field(name="✨ Заработано опыта", value=f"{user_mes}", inline = False)
             stat_emb.add_field(name="🏅 Место", value=f"{place} / {len(pairs)}", inline = False)
             stat_emb.set_author(name = f"Профиль 🔎 {user}", icon_url = f"{user.avatar_url}")
             stat_emb.set_thumbnail(url = subguild["avatar_url"])
@@ -2540,8 +2544,11 @@ async def user_guild(ctx, user_s = None):
 @client.event
 async def on_message(message):
     if message.guild != None:
+        user_id = message.author.id
+        server_id = message.guild.id
+
         collection = db["cmd_channels"]
-        result = collection.find_one({"_id": message.guild.id})
+        result = collection.find_one({"_id": server_id})
         if result == None:
             wl_channels = [message.channel.id]
         elif result["channels"] == None:
@@ -2555,17 +2562,73 @@ async def on_message(message):
         collection = db["subguilds"]
 
         if not message.author.bot:
-            collection.find_one_and_update(
-                {
-                    "_id": message.guild.id,
-                    f"subguilds.members.{message.author.id}.id": message.author.id
+            global exp_buffer
+
+            now = datetime.datetime.utcnow()
+
+            _5_min = datetime.timedelta(seconds=300)
+            if now - exp_buffer["last_clean"] >= _5_min:
+                exp_buffer = {"last_clean": now}
+
+            if not server_id in exp_buffer:
+                exp_buffer.update([(server_id, {})])
+            
+            passed_cd = False
+            if not user_id in exp_buffer[server_id]:
+                exp_buffer[server_id].update([(user_id, now)])
+                passed_cd = True
+            else:
+                past = exp_buffer[server_id][user_id]
+                _10_sec = datetime.timedelta(seconds=10)
+
+                if now - past >= _10_sec:
+                    passed_cd = True
+                    exp_buffer[server_id][user_id] = now
+            
+            if passed_cd:
+                result = collection.find_one(
+                    {
+                        "_id": server_id,
+                        f"subguilds.members.{user_id}": {"$exists": True}
                     },
-                {
-                    "$inc": {
-                        f"subguilds.$.members.{message.author.id}.messages": 1
+                    projection={
+                        "subguilds.name": True,
+                        "subguilds.members": True
                     }
-                }
-            )
+                )
+                if result != None:
+                    sg_found = False
+                    sg_name = None
+                    S, M = -1, -1
+                    for sg in result["subguilds"]:
+                        total_mes = 0
+                        total_memb = 0
+                        for key in sg["members"]:
+                            memb = sg["members"][key]
+
+                            if not sg_found and f"{user_id}" == key:
+                                sg_found = True
+                                sg_name = "temporary"
+                            
+                            total_mes += memb["messages"]
+                            total_memb += 1
+                        
+                        if total_mes > S:
+                            S, M = total_mes, total_memb
+                        if sg_name != None and sg_found:
+                            sg_name = None
+                            Si, Mi = total_mes, total_memb
+                        
+                    if sg_found:
+                        income = round(10 * ((M+10)*(S+10) / ((Mi+10)*(Si+10))) ** (1/2))
+
+                        collection.find_one_and_update(
+                            {
+                                "_id": server_id,
+                                f"subguilds.members.{user_id}": {"$exists": True}
+                            },
+                            {"$inc": {f"subguilds.$.members.{user_id}.messages": income}}
+                        )
         
         members = message.mentions
         if members != []:
@@ -2722,7 +2785,7 @@ async def reset_guilds_error(ctx, error):
         reply = discord.Embed(
             title = "📑 Недостаточно аргументов",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} messages или mentions`'
+                f'**Использование:** `{prefix}{ctx.command.name} exp или mentions`'
             ),
             color = discord.Color.from_rgb(40, 40, 40)
         )
