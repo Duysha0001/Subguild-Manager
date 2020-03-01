@@ -383,7 +383,7 @@ async def help(ctx):
         f"`{p}join-guild Гильдия` - *зайти в гильдию*\n"
         f"`{p}leave-guild` - *выйти из текущей гильдии*\n"
         f"`{p}top` - *топ гильдий сервера*\n"
-        f"‣—‣ `{p}top mentions / members / roles / reputation` - *другие фильтры топа*\n"
+        f"‣—‣ `{p}top mentions / members / roles / reputation / rating` - *другие фильтры топа*\n"
         f"`{p}guild-info Гильдия` - *посмотреть подробности гильдии*\n"
         f"`{p}guild-top Страница_топа Гильдия` - *топ участников гильдии*\n"
         f"`{p}user-info @Пользователь` - *посмотреть свой / чужой прогресс*\n"
@@ -2215,7 +2215,7 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
         "members": "👥",
         "roles": "🎗",
         "reputation": "🔅",
-        "raiting": "🏆"
+        "rating": "🏆"
     }
     filtration = filtration.lower()
 
@@ -2232,7 +2232,7 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
                 "> `mentions`\n"
                 "> `members`\n"
                 "> `reputation`\n"
-                "> `raiting`\n"
+                "> `rating`\n"
                 "> `roles`\n"
                 f"Или просто `{prefix}guilds`"
             )
@@ -2260,7 +2260,7 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
 
         stats = []
 
-        if filtration == "raiting":
+        if filtration == "rating":
             desc = "Фильтрация одновременно **по опыту и репутации** - рейтинг гильдий"
 
             total_mes = 0
