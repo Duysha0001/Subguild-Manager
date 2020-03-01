@@ -2214,7 +2214,8 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
         "mentions": "📯",
         "members": "👥",
         "roles": "🎗",
-        "reputation": "🔅"
+        "reputation": "🔅",
+        "raiting": "🏆"
     }
     filtration = filtration.lower()
 
@@ -2231,6 +2232,7 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
                 "> `mentions`\n"
                 "> `members`\n"
                 "> `reputation`\n"
+                "> `raiting`\n"
                 "> `roles`\n"
                 f"Или просто `{prefix}guilds`"
             )
@@ -2257,36 +2259,57 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
         subguilds = result["subguilds"]
 
         stats = []
-        for subguild in subguilds:
-            if filtration == "exp":
-                desc = "Фильтрация по количеству опыта"
-                total = 0
-                for str_id in subguild["members"]:
-                    memb = subguild["members"][str_id]
-                    total += memb["messages"]
-            elif filtration == "roles":
-                desc = f"Фильтрация по количеству участников, имеющих роль <@&{role.id}>"
-                total = 0
-                for key in subguild["members"]:
-                    memb = subguild["members"][key]
-                    member = ctx.guild.get_member(memb["id"])
-                    if member != None and role in member.roles:
-                        total += 1
-            elif filtration == "mentions":
-                desc = "Фильтрация по количеству упоминаний"
-                total = subguild["mentions"]
-            elif filtration == "members":
-                desc = "Фильтрация по количеству участников"
-                total = len(subguild["members"])
-            elif filtration == "reputation":
-                desc = "Фильтрация по репутации"
-                total = subguild["reputation"]
 
-            pair = (f"{subguild['name']}", total)
-            stats.append(pair)
+        if filtration == "raiting":
+            desc = "Фильтрация одновременно **по опыту и репутации** - рейтинг гильдий"
+
+            total_mes = 0
+            total_rep = 0
+            for sg in subguilds:
+                total_rep += sg["reputation"]
+                guild_mes = 0
+                for key in sg["members"]:
+                    guild_mes += sg["members"][key]["messages"]
+                total_mes += guild_mes
+                stats.append((sg["name"], sg["reputation"], guild_mes))
+
+            if total_rep <= 0:
+                total_rep = 1
+            transfer_weight = total_mes / total_rep
+
+            stats = [(pair[0], pair[1] + round(pair[2] / transfer_weight)) for pair in stats]
+        
+        else:
+            for subguild in subguilds:
+                if filtration == "exp":
+                    desc = "Фильтрация **по количеству опыта**"
+                    total = 0
+                    for str_id in subguild["members"]:
+                        memb = subguild["members"][str_id]
+                        total += memb["messages"]
+                elif filtration == "roles":
+                    desc = f"Фильтрация **по количеству участников, имеющих роль <@&{role.id}>**"
+                    total = 0
+                    for key in subguild["members"]:
+                        memb = subguild["members"][key]
+                        member = ctx.guild.get_member(memb["id"])
+                        if member != None and role in member.roles:
+                            total += 1
+                elif filtration == "mentions":
+                    desc = "Фильтрация **по количеству упоминаний**"
+                    total = subguild["mentions"]
+                elif filtration == "members":
+                    desc = "Фильтрация **по количеству участников**"
+                    total = len(subguild["members"])
+                elif filtration == "reputation":
+                    desc = "Фильтрация **по репутации**"
+                    total = subguild["reputation"]
+
+                pair = (f"{subguild['name']}", total)
+                stats.append(pair)
+        
         del result
-        stats.sort(key=lambda i: i[1])
-        stats.reverse()
+        stats.sort(key=lambda i: i[1], reverse=True)
 
         table = ""
         for i in range(len(stats)):
