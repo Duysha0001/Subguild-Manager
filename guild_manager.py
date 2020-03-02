@@ -271,6 +271,10 @@ class detect:
         if ID == None:
             ID = 0
         member = guild.get_member(ID)
+        if member == None:
+            user_pair = search.rsplit("#", maxsplit=1)
+            if len(user_pair) > 1:
+                member = discord.utils.get(guild.members, name=user_pair[0], discriminator=user_pair[1])
         return member
     
     @staticmethod
@@ -1712,8 +1716,9 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
                     holder = []
                     for key in memb_data:
                         memb = memb_data[key]
-                        if memb["messages"] <= value and memb["id"] != subguild["leader_id"]:
-                            holder.append(memb["id"])
+                        user_id = int(key)
+                        if memb["messages"] <= value and user_id != subguild["leader_id"]:
+                            holder.append(user_id)
                     del memb_data
 
                     to_unset = {}
@@ -1752,8 +1757,9 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
                     pairs = []
                     for key in memb_data:
                         memb = memb_data[key]
-                        if memb["id"] != subguild["leader_id"]:
-                            pairs.append((memb["id"], memb["messages"]))
+                        user_id = int(key)
+                        if user_id != subguild["leader_id"]:
+                            pairs.append((user_id, memb["messages"]))
                     del memb_data
 
                     pairs.sort(key=lambda i: i[1], reverse=True)
@@ -1973,8 +1979,8 @@ async def count_roles(ctx, *, text_data):
             else:
                 pairs = [[r, 0] for r in roles]
                 for key in subguild["members"]:
-                    memb = subguild["members"][key]
-                    member = ctx.guild.get_member(memb["id"])
+                    user_id = int(key)
+                    member = ctx.guild.get_member(user_id)
                     if member != None:
                         for i in range(len(pairs)):
                             role = pairs[i][0]
@@ -2147,7 +2153,7 @@ async def leave_guild(ctx):
     result = collection.find_one(
         {
             "_id": ctx.guild.id,
-            f"subguilds.members.{ctx.author.id}.id": ctx.author.id
+            f"subguilds.members.{ctx.author.id}": {"$exists": True}
         },
         projection={"subguilds.name": True, "subguilds.members": True, "subguilds.role_id": True}
     )
@@ -2292,7 +2298,8 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
                     total = 0
                     for key in subguild["members"]:
                         memb = subguild["members"][key]
-                        member = ctx.guild.get_member(memb["id"])
+                        user_id = int(key)
+                        member = ctx.guild.get_member(user_id)
                         if member != None and role in member.roles:
                             total += 1
                 elif filtration == "mentions":
@@ -2352,7 +2359,8 @@ async def global_top(ctx, page="1"):
             for sg in result["subguilds"]:
                 for key in sg["members"]:
                     memb = sg["members"][key]
-                    pairs.append((memb["id"], memb["messages"]))
+                    user_id = int(key)
+                    pairs.append((user_id, memb["messages"]))
         pairs.sort(key=lambda i: i[1], reverse=True)
 
         length = len(pairs)
@@ -2496,7 +2504,8 @@ async def guild_members(ctx, page_num, *, guild_name):
                 pairs = []
                 for key in members:
                     member = members[key]
-                    pairs.append((member["id"], member["messages"]))
+                    user_id = int(key)
+                    pairs.append((user_id, member["messages"]))
                 pairs.sort(key=lambda i: i[1], reverse=True)
 
                 last_num = min(total_memb, interval*page_num)
@@ -2531,7 +2540,7 @@ async def user_guild(ctx, user_s = None):
     else:
         collection = db["subguilds"]
         result = collection.find_one(
-            {"_id": ctx.guild.id, f"subguilds.members.{user.id}.id": user.id},
+            {"_id": ctx.guild.id, f"subguilds.members.{user.id}": {"$exists": True}},
             projection={"subguilds.requests": False}
         )
         if result == None:
@@ -2660,8 +2669,8 @@ async def on_message(message):
                 ("_id", message.guild.id),
                 ("mentioner_id", message.author.id)
             ])
-            key_words = [f"subguilds.members.{m.id}.id" for m in members]
-            search.update([(key_words[i], members[i].id) for i in range(len(key_words))])
+            key_words = [f"subguilds.members.{m.id}" for m in members]
+            search.update([(key_word, {"$exists": True}) for key_word in key_words])
             del members
             
             proj = {"subguilds.name": True}
