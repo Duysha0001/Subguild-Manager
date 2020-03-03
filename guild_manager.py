@@ -2456,7 +2456,7 @@ async def guild_info(ctx, *, guild_name = None):
             title = subguild["name"],
             description = (
                 f"{subguild['description']}\n"
-                f"**->** Топ 10 гильдии: `{prefix}guild-top 1 {guild_name}`"
+                f"**->** Топ участников: `{prefix}guild-top 1 {subguild['name']}`"
             ),
             color = discord.Color.green()
         )
@@ -2549,7 +2549,7 @@ async def guild_members(ctx, page_num, *, guild_name = None):
                     desc += f"**{i + 1})** {f_username(user)} • {pair[1]} ✨\n"
                 
                 lb = discord.Embed(
-                    title = f"🔎 Участники гильдии {guild_name}",
+                    title = f"🔎 Участники гильдии {subguild['name']}",
                     description = desc,
                     color = discord.Color.green()
                 )
