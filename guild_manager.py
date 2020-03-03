@@ -221,13 +221,21 @@ def f_username(user):
             out += s
     return out
 
-def get_member(guild, ID):
-    return discord.utils.get(guild.members, id=ID)
-
 def emj(name):
     emoji_guild = client.get_guild(642107341868630016)
     emoji = discord.utils.get(emoji_guild.emojis, name = name)
     return emoji
+
+def mmorpg_col(col_name):
+    colors = {
+        "paper": discord.Color.from_rgb(163, 139, 101),
+        "canopy": discord.Color.from_rgb(120, 55, 55),
+        "sky": discord.Color.from_rgb(163, 193, 214),
+        "clover": discord.Color.from_rgb(59, 160, 113),
+        "vinous": discord.Color.from_rgb(135, 20, 20),
+        "lilac": discord.Color.from_rgb(120, 100, 153)
+    }
+    return colors[col_name]
 
 async def read_message(channel, user, t_out):
     try:
@@ -424,7 +432,7 @@ async def help(ctx):
     )
     help_emb = discord.Embed(
         title = f"📰 Список команд",
-        color = discord.Color.from_rgb(150, 150, 150)
+        color = mmorpg_col("sky")
     )
     
     help_emb.add_field(name = "**Всем пользователям**", value = user_cmd_desc, inline=False)
@@ -443,7 +451,7 @@ async def settings(ctx):
                 "Требуемые права:\n"
                 "> Администратор"
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -504,7 +512,7 @@ async def settings(ctx):
                 f"> {lim_desc}\n\n"
                 f"-> Список команд: `{prefix}help`"
             ),
-            color = discord.Color.blurple()
+            color = mmorpg_col("lilac")
         )
         reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = reply)
@@ -521,7 +529,7 @@ async def cmd_channels(ctx, *raw_ch):
                 "Требуемые права:\n"
                 "> Администратор"
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -536,7 +544,7 @@ async def cmd_channels(ctx, *raw_ch):
         reply = discord.Embed(
             title = "♻ Каналы сброшены",
             description = "Теперь я реагирую на команды во всех каналах",
-            color = discord.Color.dark_green()
+            color = mmorpg_col("clover")
         )
         await ctx.send(embed = reply)
 
@@ -547,7 +555,8 @@ async def cmd_channels(ctx, *raw_ch):
                 title = f"💢 Ошибка",
                 description = (
                     f"В качестве каналов укажите их **#ссылки** или **ID**"
-                )
+                ),
+                color=mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -570,7 +579,7 @@ async def cmd_channels(ctx, *raw_ch):
                     f"Теперь бот реагирует на команды только в каналах:\n"
                     f"{desc}"
                 ),
-                color = discord.Color.blurple()
+                color = mmorpg_col("lilac")
             )
             await ctx.send(embed = reply)
 
@@ -584,7 +593,7 @@ async def members_limit(ctx, lim):
                 "Требуемые права:\n"
                 "> Администратор"
             ),
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -592,7 +601,7 @@ async def members_limit(ctx, lim):
         reply = discord.Embed(
             title = "💢 Неверный аргумент",
             description = f"Аргумент {lim} должен быть целым положительным числом",
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -600,7 +609,7 @@ async def members_limit(ctx, lim):
         reply = discord.Embed(
             title = "❌ Ошибка",
             description = f"Лимит пользователей не может превышать **{member_limit}** на гильдию",
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -619,7 +628,7 @@ async def members_limit(ctx, lim):
                 f"Текущий лимит пользователей в гильдиях: **{lim}**\n"
                 f"Отчёт о настройках: `{prefix}settings`"
             ),
-            color = discord.Color.dark_green()
+            color = mmorpg_col("clover")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -634,7 +643,7 @@ async def master_role(ctx, *, r_search):
                 "Требуемые права:\n"
                 "> Администратор"
             ),
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -653,7 +662,7 @@ async def master_role(ctx, *, r_search):
             reply = discord.Embed(
                 title = "💢 Неверный аргумент",
                 description = f"Вы ввели {r_search}, подразумевая роль, но она не была найдена",
-                color = discord.Color.dark_red()
+                color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -675,7 +684,7 @@ async def master_role(ctx, *, r_search):
             reply = discord.Embed(
                 title = "✅ Настроено",
                 description = desc,
-                color = discord.Color.dark_green()
+                color = mmorpg_col("clover")
             )
             await ctx.send(embed = reply)
 
@@ -708,7 +717,7 @@ async def reputation(ctx, param, value=None, *, text_data=None):
                 "> `set`\n"
                 f"Подробнее: `{prefix}rep change / set`"
             ),
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -730,7 +739,7 @@ async def reputation(ctx, param, value=None, *, text_data=None):
         reply = discord.Embed(
             title = "💢 Неверный аргуметн",
             description = f"Входной аргумент {value} должен быть целым числом",
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -756,7 +765,7 @@ async def reputation(ctx, param, value=None, *, text_data=None):
                     f"На сервере нет гильдий с названием **{guild_name}**\n"
                     f"Список гильдий: `{prefix}guilds`"
                 ),
-                color = discord.Color.from_rgb(40, 40, 40)
+                color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -777,7 +786,7 @@ async def reputation(ctx, param, value=None, *, text_data=None):
                         "> Администратор\n"
                         "> Мастер гильдий"
                     ),
-                    color = discord.Color.dark_red()
+                    color = mmorpg_col("vinous")
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
@@ -815,7 +824,7 @@ async def reputation(ctx, param, value=None, *, text_data=None):
                 reply = discord.Embed(
                     title = "✅ Выполнено",
                     description = f"Репутация гильдии изменена.\nПрофиль: `{prefix}guild-info {guild_name}`",
-                    color = discord.Color.dark_green()
+                    color = mmorpg_col("clover")
                 )
                 await ctx.send(embed = reply)
 
@@ -847,7 +856,7 @@ async def rep_logs(ctx):
                 "Или\n"
                 "> Мастер гильдий"
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -855,7 +864,7 @@ async def rep_logs(ctx):
     else:
         log_emb = discord.Embed(
             title = "🛠 Последние 10 действий",
-            color = discord.Color.dark_orange()
+            color = mmorpg_col("canopy")
         )
         for log in rep_logs:
             user = client.get_user(log["changer_id"])
@@ -894,7 +903,7 @@ async def create_guild(ctx, *, guild_name):
                 "Или\n"
                 "> Мастер гильдий"
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -956,7 +965,7 @@ async def create_guild(ctx, *, guild_name):
                         f"Профиль гильдии: `{prefix}guild-info {guild_name}`\n"
                         f"Зайти в гильдию `{prefix}join-guild {guild_name}`"
                     ),
-                    color = discord.Color.green()
+                    color = mmorpg_col("clover")
                 )
                 reply.set_thumbnail(url = default_avatar_url)
                 await ctx.send(embed = reply)
@@ -990,7 +999,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                 f'**Использование:** `{prefix}{ctx.command.name} Параметр [Название гильдии] Новое значение`\n'
                 f'**Пример:** `{prefix}{ctx.command.name} name [Моя гильдия] Хранители`\n'
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -1017,7 +1026,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
             reply = discord.Embed(
                 title = "💢 Ошибка",
                 description = f"Гильдии с названием **{guild_name}** нет на сервере",
-                color = discord.Color.from_rgb(40, 40, 40)
+                color = mmorpg_col("vinous")
             )
             await ctx.send(embed = reply)
         
@@ -1037,7 +1046,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                         "> Мастер гильдий\n"
                         "> Администратор"
                     ),
-                    color = discord.Color.dark_red()
+                    color = mmorpg_col("vinous")
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
@@ -1052,7 +1061,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                         reply = discord.Embed(
                             title = "❌ Ошибка",
                             description = f"Гильдия с названием {f_username(value)} уже есть",
-                            color = discord.Color.dark_red()
+                            color = mmorpg_col("vinous")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                         await ctx.send(embed = reply)
@@ -1069,7 +1078,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                         reply = discord.Embed(
                             title = "💢 Ошибка",
                             description = f"Вы ввели {text}, подразумевая участника, но он не был найден",
-                            color = discord.Color.dark_red()
+                            color = mmorpg_col("vinous")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                         await ctx.send(embed = reply)
@@ -1078,7 +1087,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                         reply = discord.Embed(
                             title = "💢 Ошибка",
                             description = f"{f_username(value)} является главой этой гильдии.",
-                            color = discord.Color.dark_red()
+                            color = mmorpg_col("vinous")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                         await ctx.send(embed = reply)
@@ -1096,7 +1105,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                         reply = discord.Embed(
                             title = "💢 Ошибка",
                             description = f"Вы ввели {text}, подразумевая роль, но она не была найдена",
-                            color = discord.Color.dark_red()
+                            color = mmorpg_col("vinous")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                         await ctx.send(embed = reply)
@@ -1107,7 +1116,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                         reply = discord.Embed(
                             title = "💢 Недостаточно прав",
                             description = f"Роль <@&{value.id}> не ниже Вашей",
-                            color = discord.Color.dark_red()
+                            color = mmorpg_col("vinous")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                         await ctx.send(embed = reply)
@@ -1121,7 +1130,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                         reply = discord.Embed(
                             title = "💢 Ошибка",
                             description = f"Не удаётся найти картинку по ссылке {text}",
-                            color = discord.Color.dark_red()
+                            color = mmorpg_col("vinous")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                         await ctx.send(embed = reply)
@@ -1139,7 +1148,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                         reply = discord.Embed(
                             title = "💢 Ошибка",
                             description = f"Входной аргумент {text} должен быть `on` или `off`",
-                            color = discord.Color.dark_red()
+                            color = mmorpg_col("vinous")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                         await ctx.send(embed = reply)
@@ -1156,7 +1165,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                     reply = discord.Embed(
                         title = "✅ Настроено",
                         description = f"**->** Профиль гильдии: `{prefix}guild-info {subguild['name']}`",
-                        color = discord.Color.green()
+                        color = mmorpg_col("clover")
                     )
                     reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                     await ctx.send(embed = reply)
@@ -1181,7 +1190,7 @@ async def delete_guild(ctx, *, guild_name):
                 f"На сервере нет гильдий с названием **{guild_name}**\n"
                 f"Список гильдий: `{prefix}guilds`"
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         await ctx.send(embed = reply)
     else:
@@ -1201,7 +1210,7 @@ async def delete_guild(ctx, *, guild_name):
                     "> Мастер гильдий\n"
                     "> Администратор"
                 ),
-                color = discord.Color.dark_red()
+                color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -1217,8 +1226,7 @@ async def delete_guild(ctx, *, guild_name):
             
             reply = discord.Embed(
                 title = "🗑 Удаление завершено",
-                description = f"Вы удалили гильдию **{guild_name}**",
-                color = discord.Color.from_rgb(40, 40, 40)
+                description = f"Вы удалили гильдию **{guild_name}**"
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -1266,7 +1274,7 @@ async def requests(ctx, page, *, guild_name):
                     "> Мастер гильдий\n"
                     "> Администратор"
                 ),
-                color = discord.Color.dark_red()
+                color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -1293,7 +1301,7 @@ async def requests(ctx, page, *, guild_name):
             bad_ids = []
             req_list = []
             for ID in subguild["requests"]:
-                member = get_member(ctx.guild, ID)
+                member = ctx.guild.get_member(ID)
                 if member == None:
                     bad_ids.append(ID)
                 else:
@@ -1312,7 +1320,7 @@ async def requests(ctx, page, *, guild_name):
                 reply = discord.Embed(
                     title = title,
                     description = desc,
-                    color = discord.Color.dark_teal()
+                    color = mmorpg_col("paper")
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
@@ -1332,7 +1340,7 @@ async def requests(ctx, page, *, guild_name):
                         f"**Отклонить запрос:** `{prefix}decline Номер_запроса {guild_name}`\n\n"
                         f"{desc}"
                     ),
-                    color = discord.Color.blurple()
+                    color = mmorpg_col("lilac")
                 )
                 reply.set_footer(text = f"Стр. {page}/{total_pages}")
                 await ctx.send(embed = reply)
@@ -1380,7 +1388,7 @@ async def accept(ctx, num, *, guild_name):
         id_list = []
         to_pull = []
         for ID in subguild["requests"]:
-            member = get_member(ctx.guild, ID)
+            member = ctx.guild.get_member(ID)
             if member == None:
                 to_pull.append(ID)
             else:
@@ -1398,7 +1406,7 @@ async def accept(ctx, num, *, guild_name):
                     "> Мастер гильдий\n"
                     "> Администратор"
                 ),
-                color = discord.Color.dark_red()
+                color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -1454,7 +1462,7 @@ async def accept(ctx, num, *, guild_name):
                 )
                 desc = "Все заявки приняты"
                 for ID in id_list:
-                    client.loop.create_task(give_join_role(get_member(ctx.guild, ID), subguild["role_id"]))
+                    client.loop.create_task(give_join_role(ctx.guild.get_member(ID), subguild["role_id"]))
                 
             else:
                 user_id = id_list[num-1]
@@ -1467,7 +1475,7 @@ async def accept(ctx, num, *, guild_name):
                         "$set": {f"subguilds.$.members.{user_id}": {"id": user_id, "messages": 0}}
                     }
                 )
-                member = get_member(ctx.guild, user_id)
+                member = ctx.guild.get_member(user_id)
                 desc = f"Заявка {f_username(member)} принята"
 
                 await give_join_role(member, subguild["role_id"])
@@ -1513,7 +1521,7 @@ async def decline(ctx, num, *, guild_name):
         id_list = []
         to_pull = []
         for ID in subguild["requests"]:
-            member = get_member(ctx.guild, ID)
+            member = ctx.guild.get_member(ID)
             if member == None:
                 to_pull.append(ID)
             else:
@@ -1531,7 +1539,7 @@ async def decline(ctx, num, *, guild_name):
                     "> Мастер гильдий\n"
                     "> Администратор"
                 ),
-                color = discord.Color.dark_red()
+                color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -1589,7 +1597,7 @@ async def decline(ctx, num, *, guild_name):
                         "$pull": {"subguilds.$.requests": {"$in": to_pull}}
                     }
                 )
-                member = get_member(ctx.guild, user_id)
+                member = ctx.guild.get_member(user_id)
                 desc = f"Заявка {f_username(member)} отклонена"
             
             reply = discord.Embed(
@@ -1627,7 +1635,7 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
         reply = discord.Embed(
             title = "❌ Неверный параметр",
             description = f"Вы ввели: `{parameter}`\nДоступные параметры:\n{desc}",
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -1661,7 +1669,7 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
             reply = discord.Embed(
                 title = "❌ Гильдия не найдена",
                 description = f"На сервере нет гильдии с названием **{guild_name}**",
-                color = discord.Color.dark_red()
+                color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -1682,7 +1690,7 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
                         "> Мастер гильдий\n"
                         "> Администратор"
                     ),
-                    color = discord.Color.dark_red()
+                    color = mmorpg_col("vinous")
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
@@ -1693,7 +1701,7 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
                     reply = discord.Embed(
                         title = "💢 Упс",
                         description = f"Вы ввели {value}, подразумевая участника, но он не был найден",
-                        color = discord.Color.dark_red()
+                        color = mmorpg_col("vinous")
                     )
                     reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 elif user.id == subguild["leader_id"]:
@@ -1703,7 +1711,7 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
                     reply = discord.Embed(
                         title = "❌ Ошибка",
                         description = desc,
-                        color = discord.Color.dark_red()
+                        color = mmorpg_col("vinous")
                     )
                     reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 else:
@@ -1714,7 +1722,7 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
                     reply = discord.Embed(
                         title = "✅ Выполнено",
                         description = f"{f_username(user)} был исключён из гильдии **{guild_name}**",
-                        color = discord.Color.dark_green()
+                        color = mmorpg_col("clover")
                     )
                 await remove_join_role(user, subguild["role_id"])
                 await ctx.send(embed = reply)
@@ -1724,7 +1732,7 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
                     reply = discord.Embed(
                         title = "💢 Упс",
                         description = f"Планка сообщений должна быть целым положительным числом\nВы ввели: {value}",
-                        color = discord.Color.dark_red()
+                        color = mmorpg_col("vinous")
                     )
                     reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 else:
@@ -1750,13 +1758,13 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
                     reply = discord.Embed(
                         title = "✅ Выполнено",
                         description = f"Из гильдии **{guild_name}** исключено {len(holder)} участник(ов)",
-                        color = discord.Color.dark_green()
+                        color = mmorpg_col("clover")
                     )
                     reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
 
                     if subguild["role_id"] != None:
                         for ID in holder:
-                            client.loop.create_task(remove_join_role(get_member(ctx.guild, ID), subguild["role_id"]))
+                            client.loop.create_task(remove_join_role(ctx.guild.get_member(ID), subguild["role_id"]))
                 
                 await ctx.send(embed = reply)
 
@@ -1765,7 +1773,7 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
                     reply = discord.Embed(
                         title = "💢 Упс",
                         description = f"Кол-во участников должно быть целым положительным числом\nВы ввели: {value}",
-                        color = discord.Color.dark_red()
+                        color = mmorpg_col("vinous")
                     )
                     reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 else:
@@ -1798,14 +1806,14 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
                     reply = discord.Embed(
                         title = "✅ Выполнено",
                         description = f"Из гильдии **{guild_name}** исключено {segment} последних участник(ов)",
-                        color = discord.Color.dark_green()
+                        color = mmorpg_col("clover")
                     )
                     reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
 
                     if subguild["role_id"] != None:
                         for pair in pairs:
                             ID = pair[0]
-                            client.loop.create_task(remove_join_role(get_member(ctx.guild, ID), subguild["role_id"]))
+                            client.loop.create_task(remove_join_role(ctx.guild.get_member(ID), subguild["role_id"]))
                 
                 await ctx.send(embed = reply)
 
@@ -1822,7 +1830,7 @@ async def ping_count(ctx, u_search):
                 "Требуемые права:\n"
                 "> Администратор"
             ),
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
     
@@ -1838,14 +1846,14 @@ async def ping_count(ctx, u_search):
         reply = discord.Embed(
             title = "✅ Настроено",
             description = "Больше не ведётся подсчёт упоминаний",
-            color = discord.Color.green()
+            color = mmorpg_col("clover")
         )
 
     elif user == None:
         reply = discord.Embed(
             title = "💢 Упс",
             description = f"Вы ввели {u_search}, подразумевая участника, но он не был найден",
-            color = discord.Color.darker_grey()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
 
@@ -1862,7 +1870,7 @@ async def ping_count(ctx, u_search):
         reply = discord.Embed(
             title = "✅ Настроено",
             description = f"Теперь в гильдиях ведётся подсчёт пингов от **{user}**",
-            color = discord.Color.green()
+            color = mmorpg_col("clover")
         )
     await ctx.send(embed = reply)
 
@@ -1880,7 +1888,7 @@ async def reset_guilds(ctx, parameter):
                 "Требуемые права:\n"
                 "> Администратор"
             ),
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
     
@@ -1894,7 +1902,7 @@ async def reset_guilds(ctx, parameter):
                 "> `reputation`\n"
                 f"Например `{prefix}reset-guilds exp`"
             ),
-            color = discord.Color.dark_grey()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
 
@@ -1923,7 +1931,7 @@ async def reset_guilds(ctx, parameter):
     reply = discord.Embed(
         title = "♻ Завершено",
         description = "Сброс закончен",
-        color = discord.Color.green()
+        color = mmorpg_col("clover")
     )
     
     await ctx.send(embed = reply)
@@ -1950,7 +1958,7 @@ async def count_roles(ctx, *, text_data):
         reply = discord.Embed(
             title = "💢 Упс",
             description = f"На сервере нет гильдии с названием **{guild_name}**",
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -1972,7 +1980,7 @@ async def count_roles(ctx, *, text_data):
                     "> Мастер гильдий\n"
                     "> Администратор"
                 ),
-                color = discord.Color.dark_red()
+                color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -2013,7 +2021,7 @@ async def count_roles(ctx, *, text_data):
                         f"**Статистика ролей:**\n"
                         f"{desc}"
                     ),
-                    color = discord.Color.teal()
+                    color = mmorpg_col("paper")
                 )
                 await ctx.send(embed = reply)
 
@@ -2038,7 +2046,7 @@ async def join_guild(ctx, *, guild_name):
                 f"На сервере нет гильдий с названием **{guild_name}**\n"
                 f"Список гильдий: `{prefix}guilds`"
             ),
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         await ctx.send(embed = reply)
     else:
@@ -2055,7 +2063,7 @@ async def join_guild(ctx, *, guild_name):
             reply = discord.Embed(
                 title = "🛠 Гильдия переполнена",
                 description = f"В этой гильдии достигнут максимум участников - {m_lim}",
-                color = discord.Color.from_rgb(145, 74, 2)
+                color = mmorpg_col("paper")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -2073,7 +2081,7 @@ async def join_guild(ctx, *, guild_name):
                 reply = discord.Embed(
                     title = "❌ Ошибка",
                     description = f"Вы уже являетесь членом гильдии **{guild_name}**",
-                    color = discord.Color.dark_red()
+                    color = mmorpg_col("vinous")
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
@@ -2086,8 +2094,7 @@ async def join_guild(ctx, *, guild_name):
                         f"Для того, чтобы войти в другую гильдию, Вам нужно выйти из текущей, однако, **не забывайте**:\n"
                         f"**->** Счётчик сообщений участника обнуляется при выходе.\n"
                         f"Команда для выхода: `{prefix}leave-guild`"
-                    ),
-                    color = discord.Color.from_rgb(40, 40, 40)
+                    )
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
@@ -2104,7 +2111,7 @@ async def join_guild(ctx, *, guild_name):
                         description = (
                             f"Это закрытая гильдия. Вы станете её участником, как только её глава примет вашу заявку"
                         ),
-                        color = discord.Color.dark_gold()
+                        color = mmorpg_col("paper")
                     )
                     reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                     await ctx.send(embed = reply)
@@ -2154,7 +2161,7 @@ async def join_guild(ctx, *, guild_name):
                             f"Вы вступили в гильдию **{guild_name}**\n"
                             f"-> Профиль гильдии: `{prefix}guild-info {guild_name}`"
                         ),
-                        color = discord.Color.green()
+                        color = mmorpg_col("clover")
                     )
                     reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                     await ctx.send(embed = reply)
@@ -2175,7 +2182,7 @@ async def leave_guild(ctx):
         reply = discord.Embed(
             title = "❌ Ошибка",
             description = f"Вас нет ни в одной гильдии",
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2259,16 +2266,16 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
         reply = discord.Embed(
             title = "💢 Ошибка",
             description = f"Вы ввели {extra}, подразумевая роль, но она не была найдена",
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
 
     elif result == None:
         lb = discord.Embed(
-            title = f"Гильдии сервера {ctx.guild.name}",
+            title = f"⚔ Гильдии сервера {ctx.guild.name}",
             description = "Отсутствуют",
-            color = discord.Color.blue()
+            color = mmorpg_col("canopy")
         )
         lb.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = lb)
@@ -2336,9 +2343,9 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
             table += f"**{i+1})** {guild_name} • **{total}** {filters[filtration]}\n"
         
         lb = discord.Embed(
-            title = f"Гильдии сервера {ctx.guild.name}",
+            title = f"⚔ Гильдии сервера {ctx.guild.name}",
             description = f"{desc}\nПодробнее о гильдии: `{prefix}guild-info Название`\n\n{table}",
-            color = discord.Color.dark_blue()
+            color = mmorpg_col("canopy")
         )
         lb.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = lb)
@@ -2353,7 +2360,7 @@ async def global_top(ctx, page="1"):
         reply = discord.Embed(
             title = "💢 Ошибка",
             description = f"Входной аргумент {page} должен быть целым числом",
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
         await ctx.send(embed=reply)
@@ -2380,7 +2387,7 @@ async def global_top(ctx, page="1"):
             reply = discord.Embed(
                 title = "💢 Упс",
                 description = f"Страница не найдена. Всего страниц: **{total_pages}**",
-                color = discord.Color.dark_red()
+                color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
@@ -2402,12 +2409,12 @@ async def global_top(ctx, page="1"):
             desc = ""
             for i in range(first_num, last_num):
                 user = ctx.guild.get_member(pairs[i][0])
-                desc += f"**{i+1})** {f_username(user)} • {pairs[i][1]} ✨\n"
+                desc += f"**{i+1})** {f_username(user)} • **{pairs[i][1]}** ✨\n"
             
             reply = discord.Embed(
-                title = f"Топ всех участников гильдий сервера\n{ctx.guild.name}",
+                title = f"🌐 Топ всех участников гильдий сервера\n{ctx.guild.name}",
                 description = f"{auth_desc}\n\n{desc}",
-                color = discord.Color.dark_magenta()
+                color = mmorpg_col("sky")
             )
             reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
             reply.set_footer(text=f"Стр. {page}/{total_pages} | {ctx.author}", icon_url=f"{ctx.author.avatar_url}")
@@ -2438,7 +2445,7 @@ async def guild_info(ctx, *, guild_name = None):
         reply = discord.Embed(
             title = "💢 Упс",
             description = error_text,
-            color = discord.Color.dark_red()
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2458,7 +2465,7 @@ async def guild_info(ctx, *, guild_name = None):
                 f"{subguild['description']}\n"
                 f"**->** Топ участников: `{prefix}guild-top 1 {subguild['name']}`"
             ),
-            color = discord.Color.green()
+            color = mmorpg_col("sky")
         )
         reply.set_thumbnail(url = subguild["avatar_url"])
         if subguild['leader_id'] != None:
@@ -2498,7 +2505,11 @@ async def guild_members(ctx, page_num, *, guild_name = None):
 
         result = collection.find_one(
             {"_id": ctx.guild.id},
-            projection={"subguilds.name": True, "subguilds.members": True}
+            projection={
+                "subguilds.name": True,
+                "subguilds.members": True,
+                "subguilds.avatar_url": True
+            }
         )
         if guild_name == None:
             subguild = get_subguild(result, ctx.author.id)
@@ -2510,7 +2521,7 @@ async def guild_members(ctx, page_num, *, guild_name = None):
             subguild = get_subguild(result, guild_name)
             error_text = (
                 f"На сервере нет гильдий с названием **{guild_name}**\n"
-                f"Список гильдий: `{prefix}guilds`"
+                f"Список гильдий: `{prefix}top`"
             )
         del result
 
@@ -2518,7 +2529,7 @@ async def guild_members(ctx, page_num, *, guild_name = None):
             reply = discord.Embed(
                 title = "💢 Упс",
                 description = error_text,
-                color = discord.Color.dark_red()
+                color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
@@ -2545,15 +2556,16 @@ async def guild_members(ctx, page_num, *, guild_name = None):
                 desc = ""
                 for i in range(interval*(page_num-1), last_num):
                     pair = pairs[i]
-                    user = get_member(ctx.guild, pair[0])
-                    desc += f"**{i + 1})** {f_username(user)} • {pair[1]} ✨\n"
+                    user = ctx.guild.get_member(pair[0])
+                    desc += f"**{i + 1})** {f_username(user)} • **{pair[1]}** ✨\n"
                 
                 lb = discord.Embed(
-                    title = f"🔎 Участники гильдии {subguild['name']}",
+                    title = f"👥 Участники гильдии {subguild['name']}",
                     description = desc,
-                    color = discord.Color.green()
+                    color = mmorpg_col("clover")
                 )
                 lb.set_footer(text=f"Стр. {page_num}/{(total_memb - 1)//interval + 1}")
+                lb.set_thumbnail(url = subguild["avatar_url"])
                 await ctx.send(embed = lb)
 
 @commands.cooldown(1, 5, commands.BucketType.member)
@@ -2596,7 +2608,7 @@ async def user_guild(ctx, user_s = None):
 
             place = pairs.index((user.id, user_mes)) + 1
 
-            stat_emb = discord.Embed(color = discord.Color.blue())
+            stat_emb = discord.Embed(color = mmorpg_col("paper"))
             stat_emb.add_field(name="🛡 Гильдия", value=f_username(subguild['name']), inline = False)
             stat_emb.add_field(name="✨ Заработано опыта", value=f"{user_mes}", inline = False)
             stat_emb.add_field(name="🏅 Место", value=f"{place} / {len(pairs)}", inline = False)
@@ -2749,7 +2761,7 @@ async def create_guild_error(ctx, error):
                 f"**Использование:** `{prefix}{ctx.command.name} [Название гильдии]`\n"
                 f"**Пример:** `{prefix}{ctx.command.name} Дамы и господа`"
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2773,8 +2785,7 @@ async def edit_guild_error(ctx, error):
                 f"`{prefix}{ctx.command.name} name`\n"
                 f"`{prefix}{ctx.command.name} description`\n"
                 f"`{prefix}{ctx.command.name} ...`\n"
-            ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2787,7 +2798,7 @@ async def join_guild_error(ctx, error):
             description = (
                 f'**Использование:** `{prefix}{ctx.command.name} Название гильдии`'
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2800,7 +2811,7 @@ async def delete_guild_error(ctx, error):
             description = (
                 f'**Использование:** `{prefix}{ctx.command.name} Название гильдии`'
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2813,7 +2824,7 @@ async def guild_members_error(ctx, error):
             description = (
                 f'**Использование:** `{prefix}{ctx.command.name} Номер_страницы Название гильдии`'
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2826,7 +2837,7 @@ async def ping_count_error(ctx, error):
             description = (
                 f'**Использование:** `{prefix}{ctx.command.name} @Пользователь`'
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2839,7 +2850,7 @@ async def reset_guilds_error(ctx, error):
             description = (
                 f'**Использование:** `{prefix}{ctx.command.name} exp или mentions`'
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2852,7 +2863,7 @@ async def count_roles_error(ctx, error):
             description = (
                 f'**Использование:** `{prefix}{ctx.command.name} [Гильдия] @роль1 @роль2 ...`'
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2866,7 +2877,7 @@ async def cmd_channels_error(ctx, error):
                 f'**Использование:** `{prefix}{ctx.command.name} #канал-1 #канал-2 ...`\n'
                 f"**Сбросить настройки:** `{prefix}{ctx.command.name} delete`"
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2880,7 +2891,7 @@ async def requests_error(ctx, error):
                 f'**Использование:** `{prefix}{ctx.command.name} Страница Гильдия`\n'
                 f"**Пример:** `{prefix}{ctx.command.name} 1 Моя гильдия`"
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2895,7 +2906,7 @@ async def accept_error(ctx, error):
                 f"**Пример:** `{prefix}{ctx.command.name} 1 Моя гильдия`\n"
                 f"**Список заявок:** `{prefix}requests Страница Гильдия`"
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2910,7 +2921,7 @@ async def decline_error(ctx, error):
                 f"**Пример:** `{prefix}{ctx.command.name} 1 Моя гильдия`\n"
                 f"**Список заявок:** `{prefix}requests Страница Гильдия`"
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2928,8 +2939,7 @@ async def kick_error(ctx, error):
                 "> `last`\n"
                 f"**Пример:** `{prefix}{ctx.command.name} user @Участник Моя гильдия`\n"
                 f"**Подробнее:** `{prefix}{ctx.command.name} user (или under и last)`"
-            ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2949,7 +2959,7 @@ async def reputation_error(ctx, error):
                 f"`{prefix}{ctx.command.name} change`\n"
                 f"`{prefix}{ctx.command.name} set`\n"
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2963,7 +2973,7 @@ async def members_limit_error(ctx, error):
                 f'**Использование:** `{prefix}{ctx.command.name} Число`\n'
                 f"**Пример:** `{prefix}{ctx.command.name} 50`\n"
             ),
-            color = discord.Color.from_rgb(40, 40, 40)
+            color = mmorpg_col("vinous")
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
