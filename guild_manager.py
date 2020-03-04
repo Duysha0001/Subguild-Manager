@@ -230,10 +230,11 @@ def mmorpg_col(col_name):
     colors = {
         "paper": discord.Color.from_rgb(163, 139, 101),
         "canopy": discord.Color.from_rgb(120, 55, 55),
-        "sky": discord.Color.from_rgb(163, 193, 214),
+        "sky": discord.Color.from_rgb(131, 171, 198),
         "clover": discord.Color.from_rgb(59, 160, 113),
         "vinous": discord.Color.from_rgb(135, 20, 20),
-        "lilac": discord.Color.from_rgb(120, 100, 153)
+        "lilac": discord.Color.from_rgb(120, 100, 153),
+        "pancake": discord.Color.from_rgb(211, 150, 65)
     }
     return colors[col_name]
 
@@ -864,7 +865,7 @@ async def rep_logs(ctx):
     else:
         log_emb = discord.Embed(
             title = "🛠 Последние 10 действий",
-            color = mmorpg_col("canopy")
+            color = mmorpg_col("lilac")
         )
         for log in rep_logs:
             user = client.get_user(log["changer_id"])
@@ -1618,9 +1619,9 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
             "info": "Кикнуть конкретного участника"
         },
         "under": {
-            "usage": f"`{prefix}kick under Планка_сообщений Гильдия`",
-            "example": f"`{prefix}kick under 50 Моя Гильдия`",
-            "info": "Кикнуть тех, у кого сообщений меньше заданной планки"
+            "usage": f"`{prefix}kick under Планка_опыта Гильдия`",
+            "example": f"`{prefix}kick under 500 Моя Гильдия`",
+            "info": "Кикнуть тех, у кого кол-во опыта меньше заданной планки"
         },
         "last": {
             "usage": f"`{prefix}kick last Кол-во Гильдия`",
@@ -2275,7 +2276,7 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
         lb = discord.Embed(
             title = f"⚔ Гильдии сервера {ctx.guild.name}",
             description = "Отсутствуют",
-            color = mmorpg_col("canopy")
+            color = mmorpg_col("pancake")
         )
         lb.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = lb)
@@ -2345,7 +2346,7 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
         lb = discord.Embed(
             title = f"⚔ Гильдии сервера {ctx.guild.name}",
             description = f"{desc}\nПодробнее о гильдии: `{prefix}guild-info Название`\n\n{table}",
-            color = mmorpg_col("canopy")
+            color = mmorpg_col("pancake")
         )
         lb.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = lb)
@@ -2954,12 +2955,11 @@ async def reputation_error(ctx, error):
                 "**Параметры:**\n"
                 "> `change`\n"
                 "> `set`\n"
-                f"**Пример:** `{prefix}{ctx.command.name} change 10 Гильдия Участник был наказан`\n"
+                f"**Пример:** `{prefix}{ctx.command.name} change -10 Гильдия Участник был наказан`\n"
                 "**Подробнее:**\n"
                 f"`{prefix}{ctx.command.name} change`\n"
                 f"`{prefix}{ctx.command.name} set`\n"
-            ),
-            color = mmorpg_col("vinous")
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
