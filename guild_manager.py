@@ -20,6 +20,8 @@ cluster = MongoClient(app_string)
 db = cluster["guild_data"]
 
 #========Lists and values=========
+turned_on_at = datetime.datetime.utcnow()
+
 param_desc = {
     "name": {
         "usage": f'`{prefix}edit-guild name [Старое название] Новое название`',
@@ -392,6 +394,52 @@ async def logout(ctx):
     if ctx.author.id in owner_ids:
         await ctx.send("Logging out...")
         await client.logout()
+
+@commands.cooldown(1, 5, commands.BucketType.member)
+@client.command(aliases = ["bot-stats"])
+async def bot_stats(ctx):
+    servers = client.guilds
+    total_users = 0
+    total_servers = 0
+    for server in servers:
+        total_users += len(server.members)
+        total_servers += 1
+    
+    dev_desc = ""
+    for owner_id in owner_ids:
+        dev_desc += f"> {f_username(client.get_user(owner_id))}\n"
+    
+    now = datetime.datetime.utcnow()
+    delta = now - turned_on_at
+    delta_sec = delta.seconds
+    delta_exp = {
+        "сут": delta.days,
+        "ч": delta_sec//3600,
+        "мин": delta_sec%3600//60,
+        "сек": delta_sec%60
+    }
+    delta_desc = ""
+    for key in delta_exp:
+        if delta_exp[key] != 0:
+            delta_desc += f"{delta_exp[key]} {key} "
+
+    link_desc = (
+        "> [Добавить бота](https://discordapp.com/api/oauth2/authorize?client_id=677976225876017190&permissions=470150209&scope=bot)\n"
+        "> [Сервер бота](https://discord.gg/Hp8XFcp)"
+    )
+
+    reply = discord.Embed(
+        title = "📊 Статистика бота",
+        color = mmorpg_col("lilac")
+    )
+    reply.set_thumbnail(url = f"{client.user.avatar_url}")
+    reply.add_field(name="📚 **Всего серверов**", value=f"> {total_servers}", inline=False)
+    reply.add_field(name="👥 **Всего пользователей**", value=f"> {total_users}", inline=False)
+    reply.add_field(name="🌐 **Бот онлайн**", value=f"> {delta_desc}", inline=False)
+    reply.add_field(name="🛠 **Разработчик**", value=dev_desc, inline=False)
+    reply.add_field(name="🔗 **Ссылки**", value=link_desc, inline=False)
+
+    await ctx.send(embed = reply)
 
 @commands.cooldown(1, 5, commands.BucketType.member)
 @client.command(aliases = ["info", "commands"])
