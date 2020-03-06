@@ -960,7 +960,10 @@ async def create_guild(ctx, *, guild_name):
     else:
         total_guilds = 0
         if result != None:
-            total_guilds = len(result["subguilds"])
+            if "subguilds" in result:
+                total_guilds = len(result["subguilds"])
+            else:
+                total_guilds = 0
 
         if total_guilds >= guild_limit:
             reply = discord.Embed(
