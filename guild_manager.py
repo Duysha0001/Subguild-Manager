@@ -1959,10 +1959,13 @@ async def reset_guilds(ctx, parameter):
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
 
     elif parameter != "exp":
+        sup = 0
+        if parameter == "reputation":
+            sup = 100
         collection.find_one_and_update(
             {"_id": ctx.guild.id},
             {
-                "$set": {f"subguilds.$[].{parameter}": 0}
+                "$set": {f"subguilds.$[].{parameter}": sup}
             }
         )
     elif parameter == "exp":
