@@ -137,10 +137,12 @@ def get_param(search, param_dict):
 
 def get_subguild(collection_part, subguild_sign):
     out = None
-    if "subguilds" in collection_part:
+    if collection_part != None and "subguilds" in collection_part:
+        user_id_given = "int" in f"{type(subguild_sign)}".lower()
+
         subguilds = collection_part["subguilds"]
         for subguild in subguilds:
-            if "int" in f"{type(subguild_sign)}".lower():
+            if user_id_given:
                 if f"{subguild_sign}" in subguild["members"]:
                     out = subguild
                     break
@@ -217,6 +219,16 @@ def has_roles(member, role_array):
                 has_them = False
                 break
     return has_them
+
+def is_command(word):
+    out = False
+    for cmd in client.commands:
+        group = cmd.aliases
+        group.append(cmd.name)
+        if word in group:
+            out = True
+            break
+    return out
 
 def image_link(string):
     return string.startswith("https://")
@@ -2736,25 +2748,56 @@ async def user_guild(ctx, user_s = None):
 #========Events========
 @client.event
 async def on_message(message):
+    # If not direct message
     if message.guild != None:
         user_id = message.author.id
         server_id = message.guild.id
-
-        collection = db["cmd_channels"]
-        result = collection.find_one({"_id": server_id})
-        if result == None:
-            wl_channels = [message.channel.id]
-        elif result["channels"] == None:
-            wl_channels = [message.channel.id]
-        else:
-            wl_channels = result["channels"]
-        
-        if message.channel.id in wl_channels:
-            await client.process_commands(message)
-        
-        collection = db["subguilds"]
+        channel_id = message.channel.id
 
         if not message.author.bot:
+            # Check if command and process command
+
+            mes_content = message.content.strip(prefix)
+            words = mes_content.split(maxsplit=1)
+
+            first_word = None
+            if len(words) > 0:
+                first_word = words[0]
+
+            if is_command(first_word):
+                collection = db["cmd_channels"]
+                result = collection.find_one({"_id": server_id})
+
+                if result == None:
+                    wl_channels = [channel_id]
+                elif result["channels"] == None:
+                    wl_channels = [channel_id]
+                else:
+                    wl_channels = result["channels"]
+                    server_channel_ids = [c.id for c in message.guild.channels]
+
+                    total_not_exist = 0
+                    for wl_channel_id in wl_channels:
+                        if wl_channel_id not in server_channel_ids:
+                            total_not_exist += 1
+                    
+                    if total_not_exist >= len(wl_channels):
+                        wl_channels = [channel_id]
+                
+                if channel_id in wl_channels:
+                    await client.process_commands(message)
+                
+                else:
+                    reply = discord.Embed(
+                        title="⚠ Лимит",
+                        description="Пожалуйста, используйте команды в другом канале.",
+                        color=discord.Color.gold()
+                    )
+                    reply.set_footer(text = f"{message.author}", icon_url=f"{message.author.avatar_url}")
+                    await message.channel.send(embed=reply)
+
+            # Check cooldown and calculate income
+            collection = db["subguilds"]
             global exp_buffer
 
             now = datetime.datetime.utcnow()
@@ -2789,7 +2832,7 @@ async def on_message(message):
                         "subguilds.members": True
                     }
                 )
-                if result != None:
+                if result != None and "subguilds" in result:
                     sg_found = False
                     sg_name = None
                     S, M = -1, -1
@@ -2823,6 +2866,7 @@ async def on_message(message):
                             {"$inc": {f"subguilds.$.members.{user_id}.messages": income}}
                         )
         
+        # Award with mentions
         members = message.mentions
         if members != []:
             search = {}
