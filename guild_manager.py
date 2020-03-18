@@ -126,6 +126,15 @@ def exclude(symbols, text):
             out += s
     return out
 
+def get_param(search, param_dict):
+    out = None
+    search = str(search)
+    for key in param_dict:
+        if search in param_dict[key]:
+            out = key
+            break
+    return out
+
 def get_subguild(collection_part, subguild_sign):
     out = None
     if "subguilds" in collection_part:
@@ -212,7 +221,7 @@ def has_roles(member, role_array):
 def image_link(string):
     return string.startswith("https://")
 
-def f_username(user):
+def anf(user):
     line = f"{user}"
     fsymbs = ">`*_~|"
     out = ""
@@ -407,7 +416,7 @@ async def bot_stats(ctx):
     
     dev_desc = ""
     for owner_id in owner_ids:
-        dev_desc += f"> {f_username(client.get_user(owner_id))}\n"
+        dev_desc += f"> {anf(client.get_user(owner_id))}\n"
     
     now = datetime.datetime.utcnow()
     delta = now - turned_on_at
@@ -477,6 +486,7 @@ async def help(ctx):
         f"‣—‣ `{p}master-role delete` - *сбросить*\n"
         f"`{p}members-limit Число` - *настроить лимит участников на гильдию*\n"
         f"`{p}reset-guilds exp / mentions` - *обнуляет либо упоминания, либо сообщения всех гильдий сервера*\n"
+        f"`{p}clear-guilds` - *удаляет все гильдии сервера*\n"
         f"`{p}ping-count @Пользователь` - *настраивает пользователя, пинги которого будут подсчитываться*\n"
     )
     help_emb = discord.Embed(
@@ -681,6 +691,59 @@ async def members_limit(ctx, lim):
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
+
+@commands.cooldown(1, 30, commands.BucketType.member)
+@client.command(aliases=["clear-guilds", "delete-all-guilds"])
+async def clear_guilds(ctx):
+    if not has_permissions(ctx.author, ["administrator"]):
+        reply = discord.Embed(
+            title = "❌ Недостаточно прав",
+            description = (
+                "Требуемые права:\n"
+                "> Администратор"
+            ),
+            color = mmorpg_col("vinous")
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
+    else:
+        reply = discord.Embed(
+            title="🛠 Подтверждение",
+            description=(
+                "Использовав эту команду Вы удалите **все** гильдии этого сервера. Продолжить?\n"
+                "Напишите `да` или `нет`"
+            )
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        sys_msg = await ctx.send(embed=reply)
+
+        msg = await read_message(ctx.channel, ctx.author, 60)
+        if msg != "Timeout":
+            reply_text = msg.content.lower()
+            if reply_text in ["yes", "1", "да"]:
+                collection = db["subguilds"]
+                collection.find_one_and_update(
+                    {"_id": ctx.guild.id},
+                    {"$unset": {"subguilds": ""}}
+                )
+                reply = discord.Embed(
+                    title="♻ Выполнено",
+                    description = "Все гильдии удалены",
+                    color=mmorpg_col("clover")
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                await ctx.send(embed=reply)
+                await sys_msg.delete()
+            else:
+                reply = discord.Embed(
+                    title="❌ Отмена",
+                    description="Действие отменено",
+                    color=mmorpg_col("vinous")
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                await ctx.send(embed=reply)
+                await sys_msg.delete()
 
 @commands.cooldown(1, 10, commands.BucketType.member)
 @client.command(aliases = ["master-role", "masterrole", "mr"])
@@ -918,7 +981,7 @@ async def rep_logs(ctx):
         for log in rep_logs:
             user = client.get_user(log["changer_id"])
             desc = (
-                f"Модератор: {f_username(user)}\n"
+                f"Модератор: {anf(user)}\n"
                 f"{log['action']} на **{log['value']}** 🔅\n"
                 f"Причина: {log['reason']}"
             )
@@ -929,7 +992,7 @@ async def rep_logs(ctx):
 @client.command(aliases = ["create-guild", "createguild", "cg"])
 async def create_guild(ctx, *, guild_name):
     collection = db["subguilds"]
-    guild_name = exclude(["[", "]"], guild_name)
+    guild_name = exclude(["[", "]"], guild_name[:+30])
 
     result = collection.find_one(
         {"_id": ctx.guild.id},
@@ -959,11 +1022,8 @@ async def create_guild(ctx, *, guild_name):
     
     else:
         total_guilds = 0
-        if result != None:
-            if "subguilds" in result:
-                total_guilds = len(result["subguilds"])
-            else:
-                total_guilds = 0
+        if result != None and "subguilds" in result:
+            total_guilds = len(result["subguilds"])
 
         if total_guilds >= guild_limit:
             reply = discord.Embed(
@@ -1112,7 +1172,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                         correct_arg = False
                         reply = discord.Embed(
                             title = "❌ Ошибка",
-                            description = f"Гильдия с названием {f_username(value)} уже есть",
+                            description = f"Гильдия с названием {anf(value)} уже есть",
                             color = mmorpg_col("vinous")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1138,7 +1198,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                     elif value.id == leader_id:
                         reply = discord.Embed(
                             title = "💢 Ошибка",
-                            description = f"{f_username(value)} является главой этой гильдии.",
+                            description = f"{anf(value)} является главой этой гильдии.",
                             color = mmorpg_col("vinous")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1222,7 +1282,7 @@ async def edit_guild(ctx, parameter, *, text_data = None):
                     reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                     await ctx.send(embed = reply)
 
-@commands.cooldown(1, 30, commands.BucketType.member)
+@commands.cooldown(1, 10, commands.BucketType.member)
 @client.command(aliases = ["delete-guild", "deleteguild", "dg"])
 async def delete_guild(ctx, *, guild_name):
     collection = db["subguilds"]
@@ -1382,12 +1442,12 @@ async def requests(ctx, page, *, guild_name):
                 last_num = min(first_num + interval, length)
                 for i in range(first_num, last_num):
                     if req_list != None:
-                        desc += f"**{i + 1})** {f_username(req_list[i])}\n"
+                        desc += f"**{i + 1})** {anf(req_list[i])}\n"
 
                 reply = discord.Embed(
                     title = "Запросы на вступление",
                     description = (
-                        f"**В гильдию:** {f_username(guild_name)}\n"
+                        f"**В гильдию:** {anf(guild_name)}\n"
                         f"**Принять запрос:** `{prefix}accept Номер_запроса {guild_name}`\n"
                         f"**Отклонить запрос:** `{prefix}decline Номер_запроса {guild_name}`\n\n"
                         f"{desc}"
@@ -1528,7 +1588,7 @@ async def accept(ctx, num, *, guild_name):
                     }
                 )
                 member = ctx.guild.get_member(user_id)
-                desc = f"Заявка {f_username(member)} принята"
+                desc = f"Заявка {anf(member)} принята"
 
                 await give_join_role(member, subguild["role_id"])
             
@@ -1650,7 +1710,7 @@ async def decline(ctx, num, *, guild_name):
                     }
                 )
                 member = ctx.guild.get_member(user_id)
-                desc = f"Заявка {f_username(member)} отклонена"
+                desc = f"Заявка {anf(member)} отклонена"
             
             reply = discord.Embed(
                 title = "🛠 Выполнено",
@@ -1773,7 +1833,7 @@ async def kick(ctx, parameter, value = None, *, guild_name = None):
                     )
                     reply = discord.Embed(
                         title = "✅ Выполнено",
-                        description = f"{f_username(user)} был исключён из гильдии **{guild_name}**",
+                        description = f"{anf(user)} был исключён из гильдии **{guild_name}**",
                         color = mmorpg_col("clover")
                     )
                 await remove_join_role(user, subguild["role_id"])
@@ -1959,13 +2019,10 @@ async def reset_guilds(ctx, parameter):
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
 
     elif parameter != "exp":
-        sup = 0
-        if parameter == "reputation":
-            sup = 100
         collection.find_one_and_update(
             {"_id": ctx.guild.id},
             {
-                "$set": {f"subguilds.$[].{parameter}": sup}
+                "$set": {f"subguilds.$[].{parameter}": 0}
             }
         )
     elif parameter == "exp":
@@ -2326,7 +2383,7 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
 
-    elif result == None:
+    elif result == None or not "subguilds" in result:
         lb = discord.Embed(
             title = f"⚔ Гильдии сервера {ctx.guild.name}",
             description = "Отсутствуют",
@@ -2393,13 +2450,18 @@ async def top(ctx, filtration = "exp", *, extra = "пустую строку"):
 
         table = ""
         for i in range(len(stats)):
-            guild_name = f_username(stats[i][0])
+            guild_name = anf(stats[i][0])
             total = stats[i][1]
             table += f"**{i+1})** {guild_name} • **{total}** {filters[filtration]}\n"
         
         lb = discord.Embed(
             title = f"⚔ Гильдии сервера {ctx.guild.name}",
-            description = f"{desc}\nПодробнее о гильдии: `{prefix}guild-info Название`\n\n{table}",
+            description = (
+                f"{desc}\n"
+                f"Подробнее о гильдии: `{prefix}guild-info Название`\n"
+                f"Вступить в гильдию: `{prefix}join-guild Название`\n\n"
+                f"{table}"
+            ),
             color = mmorpg_col("pancake")
         )
         lb.set_thumbnail(url = f"{ctx.guild.icon_url}")
@@ -2464,7 +2526,7 @@ async def global_top(ctx, page="1"):
             desc = ""
             for i in range(first_num, last_num):
                 user = ctx.guild.get_member(pairs[i][0])
-                desc += f"**{i+1})** {f_username(user)} • **{pairs[i][1]}** ✨\n"
+                desc += f"**{i+1})** {anf(user)} • **{pairs[i][1]}** ✨\n"
             
             reply = discord.Embed(
                 title = f"🌐 Топ всех участников гильдий сервера\n{ctx.guild.name}",
@@ -2525,10 +2587,10 @@ async def guild_info(ctx, *, guild_name = None):
         reply.set_thumbnail(url = subguild["avatar_url"])
         if subguild['leader_id'] != None:
             leader = client.get_user(subguild["leader_id"])
-            reply.add_field(name = "💠 Владелец", value = f"> {f_username(leader)}", inline=False)
+            reply.add_field(name = "💠 Владелец", value = f"> {anf(leader)}", inline=False)
         if subguild['helper_id'] != None:
             helper = client.get_user(subguild["helper_id"])
-            reply.add_field(name = "🔰 Помощник", value = f"> {f_username(helper)}", inline=False)
+            reply.add_field(name = "🔰 Помощник", value = f"> {anf(helper)}", inline=False)
         reply.add_field(name = "👥 Всего участников", value = f"> {total_memb}", inline=False)
         reply.add_field(name = "✨ Всего опыта", value = f"> {total_mes}", inline=False)
         reply.add_field(name = "🔅 Репутация", value = f"> {subguild['reputation']}", inline=False)
@@ -2542,7 +2604,7 @@ async def guild_info(ctx, *, guild_name = None):
 
 @commands.cooldown(1, 5, commands.BucketType.member)
 @client.command(aliases = ["guild-members", "guildmembers", "gm", "guild-top", "gt"])
-async def guild_members(ctx, page_num, *, guild_name = None):
+async def guild_members(ctx, page_num="1", *, guild_name = None):
     collection = db["subguilds"]
     interval = 15
 
@@ -2612,7 +2674,7 @@ async def guild_members(ctx, page_num, *, guild_name = None):
                 for i in range(interval*(page_num-1), last_num):
                     pair = pairs[i]
                     user = ctx.guild.get_member(pair[0])
-                    desc += f"**{i + 1})** {f_username(user)} • **{pair[1]}** ✨\n"
+                    desc += f"**{i + 1})** {anf(user)} • **{pair[1]}** ✨\n"
                 
                 lb = discord.Embed(
                     title = f"👥 Участники гильдии {subguild['name']}",
@@ -2664,7 +2726,7 @@ async def user_guild(ctx, user_s = None):
             place = pairs.index((user.id, user_mes)) + 1
 
             stat_emb = discord.Embed(color = mmorpg_col("paper"))
-            stat_emb.add_field(name="🛡 Гильдия", value=f_username(subguild['name']), inline = False)
+            stat_emb.add_field(name="🛡 Гильдия", value=anf(subguild['name']), inline = False)
             stat_emb.add_field(name="✨ Заработано опыта", value=f"{user_mes}", inline = False)
             stat_emb.add_field(name="🏅 Место", value=f"{place} / {len(pairs)}", inline = False)
             stat_emb.set_author(name = f"Профиль 🔎 {user}", icon_url = f"{user.avatar_url}")
