@@ -2030,33 +2030,35 @@ async def reset_guilds(ctx, parameter):
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
 
-    elif parameter != "exp":
-        collection.find_one_and_update(
-            {"_id": ctx.guild.id},
-            {
-                "$set": {f"subguilds.$[].{parameter}": 0}
-            }
+    else:
+        if parameter != "exp":
+            collection.find_one_and_update(
+                {"_id": ctx.guild.id},
+                {
+                    "$set": {f"subguilds.$[].{parameter}": 0}
+                }
+                )
+        elif parameter == "exp":
+            result = collection.find_one(
+                {"_id": ctx.guild.id},
+                projection = {"subguilds.name": True, "subguilds.members": True}
+            )
+            if result != None and "subguilds" in result:
+                for sg in result["subguilds"]:
+                    zero_data = {}
+                    zero_data.update([
+                        (f"subguilds.$.members.{key}", {"id": int(key), "messages": 0}) for key in sg["members"]])
+                    if zero_data != {}:
+                        collection.find_one_and_update(
+                            {"_id": ctx.guild.id, "subguilds.name": sg["name"]},
+                            {"$set": zero_data}
+                        )
+                        del zero_data
+        reply = discord.Embed(
+            title = "♻ Завершено",
+            description = "Сброс закончен",
+            color = mmorpg_col("clover")
         )
-    elif parameter == "exp":
-        result = collection.find_one(
-            {"_id": ctx.guild.id},
-            projection = {"subguilds.name": True, "subguilds.members": True}
-        )
-        if result != None:
-            for sg in result["subguilds"]:
-                zero_data = {}
-                zero_data.update([
-                    (f"subguilds.$.members.{key}", {"id": int(key), "messages": 0}) for key in sg["members"]])
-                if zero_data != {}:
-                    collection.find_one_and_update(
-                        {"_id": ctx.guild.id, "subguilds.name": sg["name"]},
-                        {"$set": zero_data}
-                    )
-    reply = discord.Embed(
-        title = "♻ Завершено",
-        description = "Сброс закончен",
-        color = mmorpg_col("clover")
-    )
     
     await ctx.send(embed = reply)
 
