@@ -2871,11 +2871,10 @@ async def on_message(message):
         # Award with mentions
         members = message.mentions
         if members != []:
-            search = {}
-            search.update([
-                ("_id", message.guild.id),
-                ("mentioner_id", message.author.id)
-            ])
+            search = {
+                "_id": server_id,
+                "mentioner_id": user_id
+            }
             key_words = [f"subguilds.members.{m.id}" for m in members]
             search.update([(key_word, {"$exists": True}) for key_word in key_words])
             del members
