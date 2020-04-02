@@ -2032,18 +2032,22 @@ async def reset_guilds(ctx, parameter):
 
     else:
         if parameter != "exp":
+            value = 0
+            if parameter == "reputation":
+                value = 100
+            
             collection.find_one_and_update(
                 {"_id": ctx.guild.id},
                 {
-                    "$set": {f"subguilds.$[].{parameter}": 0}
+                    "$set": {f"subguilds.$[].{parameter}": value}
                 }
-                )
+            )
         elif parameter == "exp":
             result = collection.find_one(
                 {"_id": ctx.guild.id},
                 projection = {"subguilds.name": True, "subguilds.members": True}
             )
-            if result != None and "subguilds" in result:
+            if result != None:
                 for sg in result["subguilds"]:
                     zero_data = {}
                     zero_data.update([
@@ -2053,7 +2057,7 @@ async def reset_guilds(ctx, parameter):
                             {"_id": ctx.guild.id, "subguilds.name": sg["name"]},
                             {"$set": zero_data}
                         )
-                        del zero_data
+        
         reply = discord.Embed(
             title = "♻ Завершено",
             description = "Сброс закончен",
@@ -2218,7 +2222,7 @@ async def join_guild(ctx, *, guild_name):
                     description = (
                         f"В данный момент Вы являетесь членом гильдии **{user_guild}**.\n"
                         f"Для того, чтобы войти в другую гильдию, Вам нужно выйти из текущей, однако, **не забывайте**:\n"
-                        f"**->** Счётчик сообщений участника обнуляется при выходе.\n"
+                        f"**->** Ваш счётчик опыта обнуляется при выходе.\n"
                         f"Команда для выхода: `{prefix}leave-guild`"
                     )
                 )
@@ -2324,7 +2328,7 @@ async def leave_guild(ctx):
         warn_emb = discord.Embed(
             title = "🛠 Подтверждение",
             description = (
-                f"**->** Ваш счётчик сообщений обнулится, как только Вы покинете гильдию **{guild_name}**.\nПродолжить?\n"
+                f"**->** Ваш счётчик опыта обнулится, как только Вы покинете гильдию **{guild_name}**.\nПродолжить?\n"
                 f"Напишите `да` или `нет`"
             )
         )
@@ -2752,9 +2756,11 @@ async def user_guild(ctx, user_s = None):
 async def on_message(message):
     # If not direct message
     if message.guild != None:
+        collection = None
         user_id = message.author.id
         server_id = message.guild.id
         channel_id = message.channel.id
+        mentioned_members = message.mentions
 
         if not message.author.bot:
             # Check if command and process command
@@ -2869,15 +2875,17 @@ async def on_message(message):
                         )
         
         # Award with mentions
-        members = message.mentions
-        if members != []:
+        if mentioned_members != []:
+            if collection == None:
+                collection = db["subguilds"]
+
             search = {
                 "_id": server_id,
                 "mentioner_id": user_id
             }
-            key_words = [f"subguilds.members.{m.id}" for m in members]
-            search.update([(key_word, {"$exists": True}) for key_word in key_words])
-            del members
+            key_words = [f"subguilds.members.{m.id}" for m in mentioned_members]
+            search.update([(kw, {"$exists": True}) for kw in key_words])
+            del mentioned_members
             
             proj = {"subguilds.name": True}
             proj.update([(kw, True) for kw in key_words])
@@ -2887,13 +2895,12 @@ async def on_message(message):
                 projection=proj
             )
             
-            if result != None:
+            if result != None and "subguilds" in result:
                 subguilds = result["subguilds"]
                 for sg in subguilds:
                     if sg["members"] != {}:
                         collection.find_one_and_update(
-                            {"_id": message.guild.id,
-                            "subguilds.name": sg["name"]},
+                            {"_id": server_id, "subguilds.name": sg["name"]},
                             {"$inc": {"subguilds.$.mentions": len(sg["members"])}}
                         )
 
