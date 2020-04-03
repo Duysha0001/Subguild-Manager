@@ -1575,7 +1575,7 @@ async def accept(ctx, num, *, guild_name):
 
             if num == "all":
                 new_data = {}
-                new_data.update([(f"subguilds.$.members.{ID}", {"id": ID, "messages": 0}) for ID in id_list])
+                new_data.update([(f"subguilds.$.members.{ID}", {"messages": 0}) for ID in id_list])
 
                 collection.find_one_and_update(
                     {"_id": ctx.guild.id, "subguilds.name": guild_name},
@@ -1596,7 +1596,7 @@ async def accept(ctx, num, *, guild_name):
                     {"_id": ctx.guild.id, "subguilds.name": guild_name},
                     {
                         "$pull": {"subguilds.$.requests": {"$in": to_pull}},
-                        "$set": {f"subguilds.$.members.{user_id}": {"id": user_id, "messages": 0}}
+                        "$set": {f"subguilds.$.members.{user_id}": {"messages": 0}}
                     }
                 )
                 member = ctx.guild.get_member(user_id)
@@ -2270,7 +2270,6 @@ async def join_guild(ctx, *, guild_name):
                         {
                             "$set": {
                                 f"subguilds.$.members.{ctx.author.id}": {
-                                    "id": ctx.author.id,
                                     "messages": 0
                                 }
                             }
