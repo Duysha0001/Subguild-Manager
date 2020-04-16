@@ -465,7 +465,7 @@ async def bot_stats(ctx):
 @commands.cooldown(1, 5, commands.BucketType.member)
 @client.command(aliases = ["info", "commands"])
 async def help(ctx):
-    p = prefix
+    p = ctx.prefix
     user_cmd_desc = (
         f"`{p}join-guild Гильдия` - *зайти в гильдию*\n"
         f"`{p}leave-guild` - *выйти из текущей гильдии*\n"
@@ -503,6 +503,10 @@ async def help(ctx):
     )
     help_emb = discord.Embed(
         title = f"📰 Список команд",
+        description=(
+            f"**Состояние бота:** `{p}bot-stats`\n"
+            "**[Добавить на сервер](https://discordapp.com/api/oauth2/authorize?client_id=677976225876017190&permissions=470150209&scope=bot)**"
+        ),
         color = mmorpg_col("sky")
     )
     
@@ -2903,7 +2907,8 @@ async def on_message(message):
                             {"$inc": {"subguilds.$.mentions": len(sg["members"])}}
                         )
 
-#========Errors==========
+#======== Errors ==========
+# Cooldown
 @client.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandOnCooldown):
@@ -2919,17 +2924,20 @@ async def on_command_error(ctx, error):
                 description = f"Осталось {TimeExpand(int(error.retry_after))}"
             )
         await ctx.send(embed=cool_notify)
-#====Exact errors=====
+
+# Missing arguments
 @create_guild.error
 async def create_guild_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "🛠 Недостаточно аргументов",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f"**Использование:** `{prefix}{ctx.command.name} [Название гильдии]`\n"
-                f"**Пример:** `{prefix}{ctx.command.name} Дамы и господа`"
-            ),
-            color = mmorpg_col("vinous")
+                "**Описание:** создаёт гильдию\n"
+                f"**Использование:** `{p}{cmd} Название гильдии`\n"
+                f"**Пример:** `{p}{cmd} Короли`"
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2937,9 +2945,13 @@ async def create_guild_error(ctx, error):
 @edit_guild.error
 async def edit_guild_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Об аргументах",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
+                "**Описание:** настраивает гильдию\n"
+                "**Параметры:**\n"
                 "> `name`\n"
                 "> `description`\n"
                 "> `avatar`\n"
@@ -2947,12 +2959,12 @@ async def edit_guild_error(ctx, error):
                 "> `helper`\n"
                 "> `role`\n"
                 "> `privacy`\n"
-                f'**Использование:** `{prefix}{ctx.command.name} Параметр [Название гильдии] Новое значение`\n'
-                f'**Пример:** `{prefix}{ctx.command.name} name [Дамы и господа] Хранители`\n'
+                f'**Использование:** `{p}{cmd} Параметр [Название гильдии] Новое значение`\n'
+                f'**Пример:** `{p}{cmd} name [Цари Горы] Хранители`\n'
                 f'**Подробнее о параметрах:**\n'
-                f"`{prefix}{ctx.command.name} name`\n"
-                f"`{prefix}{ctx.command.name} description`\n"
-                f"`{prefix}{ctx.command.name} ...`\n"
+                f"`{p}{cmd} name`\n"
+                f"`{p}{cmd} description`\n"
+                f"`{p}{cmd} ...`\n"
             )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -2961,12 +2973,15 @@ async def edit_guild_error(ctx, error):
 @join_guild.error
 async def join_guild_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Недостаточно аргументов",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} Название гильдии`'
-            ),
-            color = mmorpg_col("vinous")
+                "**Описание:** вход в гильдию\n"
+                f"**Использование:** `{p}{cmd} Название гильдии`\n"
+                f"**Пример:** `{p}{cmd} Короли`"
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -2974,38 +2989,45 @@ async def join_guild_error(ctx, error):
 @delete_guild.error
 async def delete_guild_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Недостаточно аргументов",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} Название гильдии`'
-            ),
-            color = mmorpg_col("vinous")
+                "**Описание:** удаляет гильдию\n"
+                f"**Использование:** `{p}{cmd} Название гильдии`\n"
+                f"**Пример:** `{p}{cmd} Короли`"
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
 
-@guild_members.error
-async def guild_members_error(ctx, error):
-    if isinstance(error, commands.MissingRequiredArgument):
-        reply = discord.Embed(
-            title = "📑 Недостаточно аргументов",
-            description = (
-                f'**Использование:** `{prefix}{ctx.command.name} Номер_страницы Название гильдии`'
-            ),
-            color = mmorpg_col("vinous")
-        )
-        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-        await ctx.send(embed = reply)
+# @guild_members.error
+# async def guild_members_error(ctx, error):
+#     if isinstance(error, commands.MissingRequiredArgument):
+#         p = ctx.prefix
+#         cmd = ctx.command
+#         reply = discord.Embed(
+#             title = f"❓ Об аргументах `{p}{cmd}`",
+#             description = (
+#                 f'**Использование:** `{prefix}{ctx.command.name} Номер_страницы Название гильдии`'
+#             )
+#         )
+#         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+#         await ctx.send(embed = reply)
 
 @ping_count.error
 async def ping_count_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Недостаточно аргументов",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} @Пользователь`'
-            ),
-            color = mmorpg_col("vinous")
+                "**Описание:** настраивает пользователя, упоминания которым нужно учитывать в статистике гильдий\n"
+                f"**Использование:** `{p}{cmd} @Пользователь`\n"
+                f"**Пример:** `{p}{cmd} @MEE6#4876`"
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -3013,12 +3035,17 @@ async def ping_count_error(ctx, error):
 @reset_guilds.error
 async def reset_guilds_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Недостаточно аргументов",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} exp или mentions`'
-            ),
-            color = mmorpg_col("vinous")
+                "**Описание:** обнуляет топ по указанному фильтру\n"
+                "**Использование:**\n"
+                f"> `{p}{cmd} exp` - по опыту\n"
+                f"> `{p}{cmd} reputation - по репутации`\n"
+                f"> `{p}{cmd} mentions` - по упоминаниям"
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -3026,12 +3053,14 @@ async def reset_guilds_error(ctx, error):
 @count_roles.error
 async def count_roles_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Недостаточно аргументов",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} [Гильдия] @роль1 @роль2 ...`'
-            ),
-            color = mmorpg_col("vinous")
+                "**Описание:** подсчитать кол-во перечисленных ролей в существующих гильдиях\n"
+                f"**Использование:** `{p}{cmd} [Гильдия] @роль1 @роль2 ...`\n"
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -3039,13 +3068,15 @@ async def count_roles_error(ctx, error):
 @cmd_channels.error
 async def cmd_channels_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Недостаточно аргументов",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} #канал-1 #канал-2 ...`\n'
-                f"**Сбросить настройки:** `{prefix}{ctx.command.name} delete`"
-            ),
-            color = mmorpg_col("vinous")
+                "**Описание:** настраивает каналы реагирования на команды\n"
+                f'**Использование:** `{p}{cmd} #канал-1 #канал-2 ...`\n'
+                f"**Сброс:** `{p}{cmd} delete`"
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -3053,13 +3084,15 @@ async def cmd_channels_error(ctx, error):
 @requests.error
 async def requests_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Недостаточно аргументов",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} Страница Гильдия`\n'
-                f"**Пример:** `{prefix}{ctx.command.name} 1 Моя гильдия`"
-            ),
-            color = mmorpg_col("vinous")
+                "**Описание:** просмотр списка заявок на вступление в какую-либо гильдию\n"
+                f'**Использование:** `{p}{cmd} Страница Гильдия`\n'
+                f"**Пример:** `{p}{cmd} 1 Короли`"
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -3067,14 +3100,17 @@ async def requests_error(ctx, error):
 @accept.error
 async def accept_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Недостаточно аргументов",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} Номер_заявки Гильдия`\n'
-                f"**Пример:** `{prefix}{ctx.command.name} 1 Моя гильдия`\n"
+                "**Описание:** принять заявку на вступление\n"
+                f'**Использование:** `{p}{cmd} Номер_заявки Гильдия`\n'
+                f"**Примеры:** `{p}{cmd} 1 Короли`\n"
+                f">> `{p}{cmd} all Короли`\n"
                 f"**Список заявок:** `{prefix}requests Страница Гильдия`"
-            ),
-            color = mmorpg_col("vinous")
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -3082,14 +3118,17 @@ async def accept_error(ctx, error):
 @decline.error
 async def decline_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Недостаточно аргументов",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} Номер_заявки Гильдия`\n'
-                f"**Пример:** `{prefix}{ctx.command.name} 1 Моя гильдия`\n"
+                "**Описание:** отклонить заявку на вступление\n"
+                f'**Использование:** `{p}{cmd} Номер_заявки Гильдия`\n'
+                f"**Примеры:** `{p}{cmd} 1 Короли`\n"
+                f">> `{p}{cmd} all Короли`\n"
                 f"**Список заявок:** `{prefix}requests Страница Гильдия`"
-            ),
-            color = mmorpg_col("vinous")
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
@@ -3097,16 +3136,17 @@ async def decline_error(ctx, error):
 @kick.error
 async def kick_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Недостаточно аргументов",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} Параметр Значение Гильдия`\n'
-                "**Параметры:**\n"
-                "> `user`\n"
-                "> `under`\n"
-                "> `last`\n"
-                f"**Пример:** `{prefix}{ctx.command.name} user @Участник Моя гильдия`\n"
-                f"**Подробнее:** `{prefix}{ctx.command.name} user (или under и last)`"
+                "**Описание:** исключает участника(ов) из гильдии\n"
+                f"**Подкоманды:**\n"
+                f"> `{p}{cmd} user`\n"
+                f"> `{p}{cmd} under`\n"
+                f"> `{p}{cmd} last`\n"
+                "Введите одну из команд для подробностей"
             )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -3115,17 +3155,17 @@ async def kick_error(ctx, error):
 @reputation.error
 async def reputation_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Об аргументах",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} Параметр Число [Гильдия] Причина`\n'
-                "**Параметры:**\n"
-                "> `change`\n"
-                "> `set`\n"
-                f"**Пример:** `{prefix}{ctx.command.name} change -10 Гильдия Участник был наказан`\n"
-                "**Подробнее:**\n"
-                f"`{prefix}{ctx.command.name} change`\n"
-                f"`{prefix}{ctx.command.name} set`\n"
+                "**Описание:** изменяет репутацию гильдии\n"
+                f"**Подкоманды:**\n"
+                f"> `{p}{cmd} change`\n"
+                f"> `{p}{cmd} set`\n"
+                f"**Примеры:** `{p}{cmd} change -10 Короли Участник был наказан`\n"
+                f">> `{p}{cmd} set 100 Короли Начнём с чистого листа`"
             )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -3134,13 +3174,15 @@ async def reputation_error(ctx, error):
 @members_limit.error
 async def members_limit_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
         reply = discord.Embed(
-            title = "📑 Недостаточно аргументов",
+            title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                f'**Использование:** `{prefix}{ctx.command.name} Число`\n'
-                f"**Пример:** `{prefix}{ctx.command.name} 50`\n"
-            ),
-            color = mmorpg_col("vinous")
+                "**Описание:** устанавливает лимит участников во всех гильдиях\n"
+                f'**Использование:** `{p}{cmd} Число`\n'
+                f"**Пример:** `{p}{cmd} 50`\n"
+            )
         )
         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         await ctx.send(embed = reply)
