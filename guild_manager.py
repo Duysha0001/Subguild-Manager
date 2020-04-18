@@ -261,6 +261,37 @@ def mmorpg_col(col_name):
     }
     return colors[col_name]
 
+def in_quotes(ind, text):
+        quote_counter = 0
+        for i in range(ind):
+            if text[i] == "'":
+                quote_counter = (quote_counter + 1) % 2
+        return quote_counter == 1
+
+def visual_dict(Dict):
+    dict_text = f"{Dict}"
+    out = ""
+    opened_brackets = ["(", "[", "{"]
+    closed_brackets = [")", "]", "}"]
+
+    level = 0
+    i = 0
+    while i < len(dict_text):
+        symbol = dict_text[i]
+        if symbol in opened_brackets:
+            level += 1
+            out += symbol + "\n" + level * "\t"
+        elif symbol in closed_brackets:
+            level -= 1
+            out += "\n" + level * "\t" + symbol
+        elif symbol == "," and not in_quotes(i, dict_text):
+            i += 1
+            out += symbol + "\n" + level * "\t"
+        else:
+            out += symbol
+        i += 1
+    return out
+
 async def read_message(channel, user, t_out):
     try:
         msg = await client.wait_for("message", check=lambda message: user.id==message.author.id and channel.id==message.channel.id, timeout=t_out)
@@ -344,10 +375,6 @@ async def on_ready():
 async def on_member_remove(member):
     collection = db["subguilds"]
     collection.find_one_and_update(
-        {"_id": member.guild.id, "subguilds.leader_id": member.id},
-        {"$pull": {"subguilds": {"leader_id": member.id}}}
-    )
-    collection.find_one_and_update(
         {"_id": member.guild.id, f"subguilds.members.{member.id}": {"$exists": True}},
         {
             "$unset": {f"subguilds.$.members.{member.id}": ""},
@@ -415,6 +442,59 @@ async def logout(ctx):
     if ctx.author.id in owner_ids:
         await ctx.send("Logging out...")
         await client.logout()
+
+@client.command()
+async def gg(ctx, *, text_input):
+    if ctx.author.id in owner_ids:
+        collection = db["subguilds"]
+        arg_lines = text_input.split("\n")
+        pairs = arg_lines[0].split()
+        if len(arg_lines) <= 1:
+            proj = None
+        else:
+            proj_pairs = arg_lines[1].split()
+            proj_list = []
+            for pair in proj_pairs:
+                array = pair.split(":")
+                if len(array) == 1 or array[1].lower() == "true":
+                    value = True
+                else:
+                    value = False
+                proj_list.append((array[0], value))
+            proj = {}
+            proj.update(proj_list)
+
+        search = {}
+        search_list = []
+        for pair in pairs:
+            array = pair.split(":")
+            if len(array) == 1:
+                search_list.append((array[0], {"$exists": True}))
+            else:
+                key = array[0]
+                value = array[1]
+                if value.lower() == "false":
+                    value = {"$exists": False}
+                elif value.lower() == "true":
+                    value = {"$exists": True}
+                elif value.isdigit():
+                    value = int(value)
+                elif value.startswith("%"):
+                    value = value[+1:]
+                search_list.append((key, value))
+        search.update(search_list)
+
+        result = collection.find_one(
+            search,
+            projection=proj
+        )
+        text = f"{visual_dict(result)}"[:+2000]
+
+        reply = discord.Embed(
+            title="Relevant data",
+            description=f"```json\n{text}```"
+        )
+        await ctx.send(embed=reply)
 
 @commands.cooldown(1, 5, commands.BucketType.member)
 @client.command(aliases = ["bot-stats"])
