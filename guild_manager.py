@@ -60,7 +60,7 @@ exp_buffer = {"last_clean": datetime.datetime.utcnow()}
 guild_limit = 30
 member_limit = 500
 #======== Functions ========
-from functions import detect, has_permissions, has_roles, carve_int, find_alias, get_field
+from functions import detect, has_permissions, has_roles, carve_int, find_alias, get_field, has_any_permission
 
 def is_int(string):
     out = True
@@ -125,6 +125,9 @@ def is_command(word):
 
 def image_link(string):
     return string.startswith("https://")
+
+def role_gte(role, member):
+    return member.id == member.guild.owner_id or role.position == member.top_role.position
 
 def anf(user):
     line = f"{user}"
@@ -1085,13 +1088,24 @@ async def edit_guild(ctx, param, *, text_data = None):
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                         await ctx.send(embed = reply)
 
-                    elif value.position >= ctx.author.top_role.position or not has_permissions(ctx.author, ["manage_roles"]):
+                    elif role_gte(value, ctx.author) or not has_permissions(ctx.author, ["manage_roles"]):
                         correct_arg = False
 
                         reply = discord.Embed(
                             title = "💢 Недостаточно прав",
                             description = f"Роль <@&{value.id}> не ниже Вашей или у Вас нет прав на управление ролями.",
                             color = mmorpg_col("vinous")
+                        )
+                        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                        await ctx.send(embed = reply)
+                    
+                    elif role_gte(value, ctx.guild.me) or not has_permissions(ctx.guild.me, ["manage_roles"]):
+                        correct_arg = False
+
+                        reply = discord.Embed(
+                            title = "⚠ У меня нет прав",
+                            description = f"Роль <@&{value.id}> не ниже моей или у меня нет прав на управление ролями.",
+                            color = discord.Color.gold()
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                         await ctx.send(embed = reply)
