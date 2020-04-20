@@ -127,7 +127,7 @@ def image_link(string):
     return string.startswith("https://")
 
 def role_gte(role, member):
-    return member.id == member.guild.owner_id or role.position == member.top_role.position
+    return member.id != member.guild.owner_id and role.position >= member.top_role.position
 
 def anf(user):
     line = f"{user}"
