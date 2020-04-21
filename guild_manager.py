@@ -279,6 +279,31 @@ async def logout(ctx):
         await ctx.send("Logging out...")
         await client.logout()
 
+@client.command()
+async def status(ctx, *, text):
+    if ctx.author.id in owner_ids:
+        statuses = {
+            "dnd": discord.Status.dnd,
+            "idle": discord.Status.idle,
+            "online": discord.Status.online,
+            "invisible": discord.Status.invisible
+        }
+        if "||" in text:
+            status_text, str_activity = text.split("||", maxsplit=1)
+        else:
+            status_text, str_activity = text, None
+        
+        await client.change_presence(
+            activity=discord.Game(status_text),
+            status=get_field(statuses, str_activity)
+        )
+        reply = discord.Embed(
+            title="📝 Статуст изменён",
+            description=f"**Текст:** {status_text}",
+            color=mmorpg_col("clover")
+        )
+        await ctx.send(embed=reply)
+
 @commands.cooldown(1, 5, commands.BucketType.member)
 @client.command(aliases = ["bot-stats"])
 async def bot_stats(ctx):
@@ -3053,7 +3078,10 @@ async def members_limit_error(ctx, error):
 
 async def change_status():
     await client.wait_until_ready()
-    await client.change_presence(activity=discord.Game(f"{prefix}help"))
+    await client.change_presence(
+        activity=discord.Game(f"{prefix}help"),
+        status=discord.Status.idle
+    )
 client.loop.create_task(change_status())
 
 client.run(token)
