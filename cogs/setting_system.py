@@ -279,7 +279,7 @@ class setting_system(commands.Cog):
             reply = discord.Embed(
                 title="✅ Настроено",
                 description=(
-                    f"Теперь отчёты теперь приходят в канал <#{channel.id}>\n"
+                    f"Теперь отчёты приходят в канал <#{channel.id}>\n"
                     f"Отменить: `{pr}log-channel delete`\n"
                     f"Текущие настройки: `{pr}settings`"
                 ),
