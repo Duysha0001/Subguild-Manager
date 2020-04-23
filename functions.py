@@ -1,4 +1,7 @@
 owner_ids = [301295716066787332]
+guild_limit = 30
+member_limit = 500
+default_avatar_url = "https://cdn.discordapp.com/attachments/664230839399481364/677534213418778660/default_image.png"
 
 
 def get_field(Dict, *key_words, default=None):
@@ -75,6 +78,22 @@ def has_any_permission(member, perm_array):
             out = True
             break
     return out
+
+
+class Leaderboard:
+    def __init__(self, pair_array, interval=10):
+        self.pairs = pair_array
+        self.interval = interval
+        self.length = len(self.pairs)
+        self.total_pages = (self.length - 1) // self.interval + 1
+    
+    def sort_values(self, reverse=True):
+        self.pairs.sort(key=lambda pair: pair[1], reverse=reverse)
+
+    def get_page(self, page):
+        lower_bound = (page - 1) * self.interval
+        upper_bound = min(lower_bound + self.interval, self.length)
+        return (self.pairs[lower_bound:upper_bound], lower_bound)
 
 
 class detect:
