@@ -20,6 +20,8 @@ cluster = MongoClient(app_string)
 db = cluster["guild_data"]
 
 #========Lists and values=========
+from functions import guild_limit, member_limit, owner_ids
+
 turned_on_at = datetime.datetime.utcnow()
 
 statuses = {
@@ -30,8 +32,6 @@ statuses = {
 }
 
 exp_buffer = {"last_clean": datetime.datetime.utcnow()}
-
-from functions import guild_limit, member_limit, owner_ids
 
 #======== Functions ========
 from functions import get_field, find_alias, has_permissions
@@ -68,6 +68,35 @@ def mmorpg_col(col_name):
         "pancake": discord.Color.from_rgb(211, 150, 65)
     }
     return colors[col_name]
+
+def first_allowed_channel(guild):
+    out = None
+    for channel in guild.text_channels:
+        if channel.permissions_for(guild.me).send_messages:
+            out = channel
+            break
+    return out
+
+async def send_to_dev(content=None, embed=None):
+    dev_server_id = 670679133294034995
+    key_name = "активность-пользователей"
+    dev_server = client.get_guild(dev_server_id)
+    if dev_server is not None:
+        dev_channel = None
+        for tc in dev_server.text_channels:
+            if key_name in tc.name:
+                dev_channel = tc
+                break
+        if dev_channel is not None:
+            await dev_channel.send(content=content, embed=embed)
+
+async def try_send(channel, content=None, embed=None):
+    dm_opened = True
+    try:
+        await channel.send(content=content, embed=embed)
+    except Exception:
+        dm_opened = False
+    return dm_opened
 
 #======== Events =========
 
@@ -139,11 +168,64 @@ async def on_member_ban(guild, member):
         )
 
 @client.event
+async def on_guild_join(guild):
+    p = prefix
+    greet = discord.Embed(
+        title="🎁 Спасибо за то, что выбрали Subguild Manager!",
+        description=(
+            f"Категории команд можно увидеть, написав `{p}help`\n"
+            f"Рекомендую начать с категории `{p}help settings`\n"
+            f"Не забудьте настроить канал для отчётов, это очень полезно! `{p}log-channel #канал`\n"
+            f"Более понятное руководство есть **[на страничке бота](https://top.gg/bot/677976225876017190)**\n\n"
+            "`🔼` **[Проголосовать за меня](https://top.gg/bot/677976225876017190/vote)**\n"
+            "`🌍` **[Сервер разработчика](https://discord.gg/Hp8XFcp)**\n"
+            "`🐱` **[GitHub](https://github.com/EQUENOS/Subguild-Manager)**\n"
+            "`💌` **[Добавить на сервер](https://discordapp.com/api/oauth2/authorize?client_id=677976225876017190&permissions=470150209&scope=bot)**\n"
+        ),
+        color=discord.Color.gold()
+    )
+    greet.set_thumbnail(url=f"{guild.me.avatar_url}")
+
+    channel = first_allowed_channel(guild)
+    if channel is None:
+        dm_opened = await try_send(guild.owner, f"{guild.owner.mention}", greet)
+        if dm_opened:
+            greet_desc = "отправлено **главе**"
+        else:
+            greet_desc = "не было отправлено"
+    else:
+        await channel.send(f"{guild.owner.mention}", embed=greet)
+        greet_desc = f"отправлено в канал **#{channel.name}**"
+    
+    log = discord.Embed(
+        title="⚡ Добавлен на сервер",
+        description=(
+            f"**Название:** {guild.name}\n"
+            f"**Участников:** {guild.member_count}\n"
+            f"**Статус приветствия:** {greet_desc}\n"
+        ),
+        color=discord.Color.gold()
+    )
+    log.set_thumbnail(url=f"{guild.icon_url}")
+    await send_to_dev(embed=log)
+
+@client.event
 async def on_guild_remove(guild):
     collection = db["subguilds"]
     collection.delete_one({"_id": guild.id})
     collection = db["cmd_channels"]
     collection.delete_one({"_id": guild.id})
+
+    log = discord.Embed(
+        title="💥 Больше нет на сервере",
+        description=(
+            f"**Название:** {guild.name}\n"
+            f"**Участников:** {guild.member_count}"
+        ),
+        color=discord.Color.dark_red()
+    )
+    log.set_thumbnail(url=f"{guild.icon_url}")
+    await send_to_dev(embed=log)
 
 #=========Commands==========
 @client.command()
@@ -198,25 +280,28 @@ async def bot_stats(ctx):
             delta_desc += f"{delta_exp[key]} {key} "
 
     link_desc = (
-        "> [Добавить бота](https://discordapp.com/api/oauth2/authorize?client_id=677976225876017190&permissions=470150209&scope=bot)\n"
-        "> [Сервер бота](https://discord.gg/Hp8XFcp)"
+        "> [Проголосовать за бота](https://top.gg/bot/677976225876017190/vote)\n"
+        "> [Добавить на сервер](https://discordapp.com/api/oauth2/authorize?client_id=677976225876017190&permissions=470150209&scope=bot)\n"
+        "> [Страничка бота](https://top.gg/bot/677976225876017190)\n"
+        "> [Сервер разработчика](https://discord.gg/Hp8XFcp)\n"
+        "> [GitHub](https://github.com/EQUENOS/Subguild-Manager)\n"
     )
 
     reply = discord.Embed(
-        title = "📊 Статистика бота",
+        title = "📊 О боте",
         color = mmorpg_col("lilac")
     )
     reply.set_thumbnail(url = f"{client.user.avatar_url}")
     reply.add_field(name="📚 **Всего серверов**", value=f"> {total_servers}", inline=False)
     reply.add_field(name="👥 **Всего пользователей**", value=f"> {total_users}", inline=False)
-    reply.add_field(name="🌐 **Бот онлайн**", value=f"> {delta_desc}", inline=False)
-    reply.add_field(name="🛠 **Разработчик**", value=dev_desc, inline=False)
-    reply.add_field(name="🔗 **Ссылки**", value=link_desc, inline=False)
+    reply.add_field(name="🌐 **Аптайм**", value=f"> {delta_desc}", inline=False)
+    reply.add_field(name="🛠 **Разработчик**", value=f"{dev_desc}\nБлагодарность:\n> VernonRoshe")
+    reply.add_field(name="🔗 **Ссылки**", value=link_desc)
 
     await ctx.send(embed = reply)
 
 @commands.cooldown(1, 1, commands.BucketType.member)
-@client.command()
+@client.command(aliases=["h"])
 async def help(ctx, *, section=None):
     p = ctx.prefix
     sections = {
