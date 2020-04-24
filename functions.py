@@ -94,6 +94,14 @@ class Leaderboard:
         lower_bound = (page - 1) * self.interval
         upper_bound = min(lower_bound + self.interval, self.length)
         return (self.pairs[lower_bound:upper_bound], lower_bound)
+    
+    def pair_index(self, _1st_element):
+        out = None
+        for i in range(self.length):
+            if self.pairs[i][0] == _1st_element:
+                out = i
+                break
+        return out
 
 
 class detect:

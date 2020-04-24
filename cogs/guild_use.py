@@ -466,7 +466,6 @@ class guild_use(commands.Cog):
     @commands.command(aliases = ["global-top", "globaltop", "glt"])
     async def global_top(self, ctx, page="1"):
         collection = db["subguilds"]
-        interval = 15
 
         if not page.isdigit():
             reply = discord.Embed(
@@ -484,53 +483,59 @@ class guild_use(commands.Cog):
                 projection={"subguilds.members": True}
             )
 
-            pairs = []
-            if result != None and "subguilds" in result:
+            if result is None or "subguilds" not in result:
+                reply = discord.Embed(
+                    title = f"🌐 Топ всех участников гильдий сервера\n{ctx.guild.name}",
+                    description = f"Гильдий нет, топа нет :(",
+                    color = mmorpg_col("sky")
+                )
+                reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
+                await ctx.send(embed=reply)
+            
+            else:
+                pairs = []
                 for sg in result["subguilds"]:
                     for key in sg["members"]:
                         memb = sg["members"][key]
                         user_id = int(key)
                         pairs.append((user_id, memb["messages"]))
-            pairs.sort(key=lambda i: i[1], reverse=True)
+                lb = Leaderboard(pairs, 15)
+                del pairs
+                lb.sort_values()
 
-            length = len(pairs)
-            total_pages = (length-1) // interval + 1
-            if page > total_pages:
-                reply = discord.Embed(
-                    title = "💢 Упс",
-                    description = f"Страница не найдена. Всего страниц: **{total_pages}**",
-                    color = mmorpg_col("vinous")
-                )
-                reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                await ctx.send(embed=reply)
-            
-            else:
-                place = None
-                for i in range(length):
-                    if pairs[i][0] == ctx.author.id:
-                        place = i
-                        break
-                if place is None:
-                    auth_desc = "Вас нет в этом топе, так как Вы не состоите ни в одной гильдии"
+                if page > lb.total_pages or page < 1:
+                    reply = discord.Embed(
+                        title = "💢 Упс",
+                        description = f"Страница не найдена. Всего страниц: **{lb.total_pages}**",
+                        color = mmorpg_col("vinous")
+                    )
+                    reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                    await ctx.send(embed=reply)
+                
                 else:
-                    auth_desc = f"Ваше место в топе: **{place+1} / {length}**"
-                
-                first_num = interval * (page-1)
-                last_num = min(length, interval * page)
-
-                desc = ""
-                for i in range(first_num, last_num):
-                    user = ctx.guild.get_member(pairs[i][0])
-                    desc += f"**{i+1})** {anf(user)} • **{pairs[i][1]}** ✨\n"
-                
-                reply = discord.Embed(
-                    title = f"🌐 Топ всех участников гильдий сервера\n{ctx.guild.name}",
-                    description = f"{auth_desc}\n\n{desc}",
-                    color = mmorpg_col("sky")
-                )
-                reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
-                reply.set_footer(text=f"Стр. {page}/{total_pages} | {ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                await ctx.send(embed=reply)
+                    place = lb.pair_index(ctx.author.id)
+                    if place is None:
+                        auth_desc = "Вас нет в этом топе, так как Вы не состоите ни в одной гильдии"
+                    else:
+                        auth_desc = f"Ваше место в топе: **{place+1} / {lb.length}**"
+                    
+                    my_page, pos = lb.get_page(page)
+                    total_pages = lb.total_pages
+                    del lb
+                    desc = ""
+                    for pair in my_page:
+                        pos += 1
+                        user = ctx.guild.get_member(pair[0])
+                        desc += f"**{pos})** {anf(user)} • **{pair[1]}** ✨\n"
+                    
+                    reply = discord.Embed(
+                        title = f"🌐 Топ всех участников гильдий сервера\n{ctx.guild.name}",
+                        description = f"{auth_desc}\n\n{desc}",
+                        color = mmorpg_col("sky")
+                    )
+                    reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
+                    reply.set_footer(text=f"Стр. {page}/{total_pages} | {ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                    await ctx.send(embed=reply)
 
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["guild-info", "guildinfo", "gi"])
@@ -600,7 +605,7 @@ class guild_use(commands.Cog):
 
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["guild-members", "guildmembers", "gm", "guild-top", "gt"])
-    async def guild_members(self, ctx, page_num="1", *, guild_name = None):
+    async def guild_top(self, ctx, page_num="1", *, guild_name = None):
         pr = ctx.prefix
         collection = db["subguilds"]
         interval = 15
@@ -651,7 +656,7 @@ class guild_use(commands.Cog):
 
                 members = subguild["members"]
                 total_memb = len(members)
-                if interval*(page_num - 1) >= total_memb:
+                if interval * (page_num - 1) >= total_memb:
                     reply = discord.Embed(
                         title = "💢 Упс",
                         description = f"Страница не найдена. Всего страниц: **{(total_memb - 1)//interval + 1}**"
@@ -663,22 +668,25 @@ class guild_use(commands.Cog):
                         member = members[key]
                         user_id = int(key)
                         pairs.append((user_id, member["messages"]))
-                    pairs.sort(key=lambda i: i[1], reverse=True)
-
-                    last_num = min(total_memb, interval*page_num)
+                    lb = Leaderboard(pairs, 15)
+                    del pairs
+                    lb.sort_values()
                     
+                    my_page, pos = lb.get_page(page_num)
+                    total_pages = lb.total_pages
+                    del lb
                     desc = ""
-                    for i in range(interval*(page_num-1), last_num):
-                        pair = pairs[i]
+                    for pair in my_page:
+                        pos += 1
                         user = ctx.guild.get_member(pair[0])
-                        desc += f"**{i + 1})** {anf(user)} • **{pair[1]}** ✨\n"
+                        desc += f"**{pos}.** {anf(user)} • **{pair[1]}** ✨\n"
                     
                     lb = discord.Embed(
                         title = f"👥 Участники гильдии {subguild['name']}",
                         description = desc,
                         color = mmorpg_col("clover")
                     )
-                    lb.set_footer(text=f"Стр. {page_num}/{(total_memb - 1)//interval + 1}")
+                    lb.set_footer(text=f"Стр. {page_num}/{total_pages}")
                     lb.set_thumbnail(url = subguild["avatar_url"])
                     await ctx.send(embed = lb)
 

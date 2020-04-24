@@ -318,60 +318,13 @@ class guild_control(commands.Cog):
                         title="🔅 Изменена репутация",
                         description=(
                             f"**Модератор:** {ctx.author}\n"
+                            f"**Гильдия:** {guild_name}\n"
                             f"**Действие:** {changes}\n"
                             f"**Причина:** {text}"
                         ),
                         color=mmorpg_col("pancake")
                     )
                     await post_log(ctx.guild, log)
-
-    @commands.cooldown(1, 5, commands.BucketType.member)
-    @commands.command(aliases = ["rep-logs", "replogs"])
-    async def rep_logs(self, ctx):
-        collection = db["subguilds"]
-
-        result = collection.find_one(
-            {"_id": ctx.guild.id},
-            projection={
-                "master_role_id": True,
-                "rep_logs": True
-            }
-        )
-        mr_id = None
-        if result != None and "master_role_id" in result:
-            mr_id = result["master_role_id"]
-        rep_logs = []
-        if result != None and "rep_logs" in result:
-            rep_logs = result["rep_logs"]
-        
-        if not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
-            reply = discord.Embed(
-                title = "💢 Недостаточно прав",
-                description = (
-                    "Требуемые права:\n"
-                    "> Администратор\n"
-                    "Или\n"
-                    "> Мастер гильдий"
-                ),
-                color = mmorpg_col("vinous")
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-        
-        else:
-            log_emb = discord.Embed(
-                title = "🛠 Последние 10 действий",
-                color = mmorpg_col("lilac")
-            )
-            for log in rep_logs:
-                user = ctx.guild.get_member(log["changer_id"])
-                desc = (
-                    f"Модератор: {anf(user)}\n"
-                    f"{log['action']} на **{log['value']}** 🔅\n"
-                    f"Причина: {log['reason']}"
-                )
-                log_emb.add_field(name=f"💠 **Гильдия:** {log['guild']}", value=desc, inline = False)
-            await ctx.send(embed=log_emb)
 
     @commands.cooldown(1, 10, commands.BucketType.member)
     @commands.command(aliases = ["create-guild", "createguild", "cg"])

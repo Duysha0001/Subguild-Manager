@@ -121,53 +121,6 @@ async def on_member_remove(member):
     )
 
 @client.event
-async def on_member_ban(guild, member):
-    collection = db["subguilds"]
-
-    res = collection.find_one(
-        {"_id": guild.id, f"subguilds.members.{member.id}": {"$exists": True}},
-        projection={
-            "subguilds.name": True,
-            "subguilds.members": True,
-            "rep_logs": True
-        }
-    )
-    subguild = None
-    if res != None:
-        for sg in res["subguilds"]:
-            for memb in sg["members"]:
-                if f"{member.id}" in memb:
-                    subguild = sg
-                    break
-            if subguild != None:
-                break
-        logs = res["rep_logs"]
-    del res
-
-    if subguild != None:
-        log = {
-            "guild": subguild["name"],
-            "changer_id": client.user.id,
-            "reason": "Участник был забанен",
-            "action": "Изменение",
-            "value": -50
-        }
-        logs.append(log)
-        lll = len(logs)
-        if lll > 10:
-            logs = logs[lll - 10:lll]
-
-        collection.find_one_and_update(
-            {"_id": guild.id, f"subguilds.name": subguild["name"]},
-            {
-                "$inc": {"subguilds.$.reputation": -50},
-                "$unset": {f"subguilds.$.members.{member.id}": ""},
-                "$set": {"rep_logs": logs}
-            },
-            upsert=True
-        )
-
-@client.event
 async def on_guild_join(guild):
     p = prefix
     greet = discord.Embed(
@@ -536,7 +489,7 @@ async def change_status(status_text, str_activity):
         activity=discord.Game(status_text),
         status=get_field(statuses, str_activity)
     )
-client.loop.create_task(change_status(f"{prefix}help", "idle"))
+client.loop.create_task(change_status(f"{prefix}help", "online"))
 
 #--------- Loading Cogs ---------
 
