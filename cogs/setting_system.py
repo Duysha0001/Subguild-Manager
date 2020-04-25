@@ -61,6 +61,26 @@ async def read_message(channel, user, t_out, client):
     else:
         return msg
 
+async def post_log(guild, log):
+    data = load(lc_json, {})
+    if not f"{guild.id}" in data:
+        collection = db["cmd_channels"]
+        result = collection.find_one(
+            {"_id": guild.id, "log_channel": {"$exists": True}}
+        )
+        lc_id = get_field(result, "log_channel")
+        data.update([(f"{guild.id}", lc_id)])
+
+        save(data, lc_json)
+        del data
+    else:
+        lc_id = data[f"{guild.id}"]
+        del data
+
+    if lc_id is not None:
+        channel = guild.get_channel(lc_id)
+        await channel.send(embed=log)
+
 class setting_system(commands.Cog):
     def __init__(self, client):
         self.client = client
@@ -279,7 +299,7 @@ class setting_system(commands.Cog):
             reply = discord.Embed(
                 title="✅ Настроено",
                 description=(
-                    f"Теперь отчёты приходят в канал <#{channel.id}>\n"
+                    f"Теперь отчёты теперь приходят в канал <#{channel.id}>\n"
                     f"Отменить: `{pr}log-channel delete`\n"
                     f"Текущие настройки: `{pr}settings`"
                 ),
@@ -382,6 +402,15 @@ class setting_system(commands.Cog):
                     reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                     await ctx.send(embed=reply)
                     await sys_msg.delete()
+
+                    log = discord.Embed(
+                        title="🗑 Удалены все гильдии",
+                        description=(
+                            f"**Модератор:** {ctx.author}"
+                        ),
+                        color=discord.Color.dark_red()
+                    )
+                    await post_log(ctx.guild, log)
                 else:
                     reply = discord.Embed(
                         title="❌ Отмена",
@@ -526,6 +555,7 @@ class setting_system(commands.Cog):
                 color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed=reply)
         
         elif parameter is None:
             reply = discord.Embed(
@@ -540,12 +570,16 @@ class setting_system(commands.Cog):
                 color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed=reply)
 
         else:
             if parameter != "exp":
                 value = 0
                 if parameter == "reputation":
                     value = 100
+                    desc = "Репутация была сброшена до 100"
+                else:
+                    desc = "None"
                 
                 collection.find_one_and_update(
                     {"_id": ctx.guild.id},
@@ -554,6 +588,7 @@ class setting_system(commands.Cog):
                     }
                 )
             elif parameter == "exp":
+                desc = "Опыт был обнулён"
                 result = collection.find_one(
                     {"_id": ctx.guild.id},
                     projection = {"subguilds.name": True, "subguilds.members": True}
@@ -574,8 +609,17 @@ class setting_system(commands.Cog):
                 description = "Сброс закончен",
                 color = mmorpg_col("clover")
             )
-        
-        await ctx.send(embed = reply)
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed=reply)
+
+            log = discord.Embed(
+                title="♻ Сброс характеристик",
+                description=(
+                    f"**Модератор:** {ctx.author}\n"
+                    f"{desc}"
+                )
+            )
+            await post_log(ctx.guild, log)
 
     #========== Errors ===========
     @ping_count.error

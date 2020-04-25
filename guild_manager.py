@@ -72,7 +72,8 @@ def mmorpg_col(col_name):
 def first_allowed_channel(guild):
     out = None
     for channel in guild.text_channels:
-        if channel.permissions_for(guild.me).send_messages:
+        can = channel.permissions_for(guild.me)
+        if can.send_messages and can.embed_links:
             out = channel
             break
     return out
