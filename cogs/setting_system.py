@@ -696,8 +696,24 @@ class setting_system(commands.Cog):
             reply = discord.Embed(
                 title = f"❓ Об аргументах `{p}{cmd}`",
                 description = (
-                    "**Описание:** настраивает канал для логов и отчётов\n"
+                    "**Описание:** настраивает канал для логов и отчётов о действиях с гильдиями.\n"
                     f'**Использование:** `{p}{cmd} #канал`\n'
+                    f"**Сброс:** `{p}{cmd} delete`"
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+    @master_role.error
+    async def master_role_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            p = ctx.prefix
+            cmd = ctx.command.name
+            reply = discord.Embed(
+                title = f"❓ Об аргументах `{p}{cmd}`",
+                description = (
+                    "**Описание:** настраивает роль, дающую её обладателям права на создание и редактирование гильдий, а также на кики из гильдий и начисление репутации.\n"
+                    f'**Использование:** `{p}{cmd} @Роль`\n'
                     f"**Сброс:** `{p}{cmd} delete`"
                 )
             )
