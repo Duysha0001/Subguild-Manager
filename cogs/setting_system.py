@@ -195,10 +195,11 @@ class setting_system(commands.Cog):
 
             if invalid_channel_mentioned:
                 reply = discord.Embed(
-                    title = f"💢 Ошибка",
+                    title = f"💢 Упс",
                     description = (
+                        f"Возможно, я не вижу какие-то каналы, или они указаны неправильно\n"
                         f"В качестве каналов укажите их **#ссылки** или **ID**\n"
-                        f"Или же, чтобы отключить игнорирование - `delete`"
+                        f"Или же, чтобы отключить - `delete`"
                     ),
                     color=mmorpg_col("vinous")
                 )
@@ -250,7 +251,7 @@ class setting_system(commands.Cog):
             collection.find_one_and_update(
                 {"_id": ctx.guild.id},
                 {
-                    "$set": {"ignore_chats": None}
+                    "$unset": {"ignore_chats": ""}
                 }
             )
             reply = discord.Embed(
@@ -273,10 +274,11 @@ class setting_system(commands.Cog):
             
             if invalid_channel_mentioned:
                 reply = discord.Embed(
-                    title = f"💢 Ошибка",
+                    title = f"💢 Упс",
                     description = (
+                        f"Возможно, я не вижу какие-то каналы, или они указаны неправильно\n"
                         f"В качестве каналов укажите их **#ссылки** или **ID**\n"
-                        f"Чтобы отключить игнорирование укажите `delete`"
+                        f"Или, чтобы отключить игнорирование укажите `delete`"
                     ),
                     color=mmorpg_col("vinous")
                 )
