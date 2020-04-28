@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
 import asyncio
-import os
+import os, json
 import datetime
 
 import pymongo
@@ -78,6 +78,12 @@ def first_allowed_channel(guild):
             break
     return out
 
+def array(date_time):
+    return list(date_time.timetuple())[:-3]
+
+def dt(array):
+    return datetime.datetime(*array)
+
 async def send_to_dev(content=None, embed=None):
     dev_server_id = 670679133294034995
     key_name = "активность-пользователей"
@@ -98,6 +104,46 @@ async def try_send(channel, content=None, embed=None):
     except Exception:
         dm_opened = False
     return dm_opened
+
+class LocalGuildData:
+    def __init__(self, folder_name):
+        self.folder_name = folder_name
+        self.opened_data = None
+
+    def get_bucket(self, guild_id):
+        bucket = str(guild_id >> 22)[:-10]
+        if bucket == "":
+            bucket = "0"
+        return bucket
+
+    def open_for(self, guild_id):
+        bucket = self.get_bucket(guild_id)
+        filename = f"{self.folder_name}_{bucket}.json"
+        if self.folder_name in os.listdir("."):
+            if filename in os.listdir(f"{self.folder_name}"):
+                with open(f"{self.folder_name}/{filename}", "r", encoding="utf8") as fff:
+                    self.opened_data = json.load(fff)
+            else:
+                self.opened_data = {}
+        else:
+            self.opened_data = {}
+    
+    def update(self, guild_id, user_id, value):
+        g, u = str(guild_id), str(user_id)
+        if g not in self.opened_data:
+            self.opened_data[g] = {u: value}
+        else:
+            self.opened_data[g][u] = value
+
+    def save_changes_for(self, guild_id):
+        if self.opened_data is not None:
+            bucket = self.get_bucket(guild_id)
+            filename = f"{self.folder_name}/{self.folder_name}_{bucket}.json"
+            if self.folder_name not in os.listdir("."):
+                os.mkdir(self.folder_name)
+            with open(filename, "w", encoding="utf8") as fff:
+                json.dump(self.opened_data, fff)
+            self.opened_data = None
 
 #======== Events =========
 
@@ -368,30 +414,25 @@ async def on_message(message):
             else:
             # Check cooldown and calculate income
                 collection = db["subguilds"]
-                global exp_buffer
-
                 now = datetime.datetime.utcnow()
 
-                _5_min = datetime.timedelta(seconds=300)
-                if now - exp_buffer["last_clean"] >= _5_min:
-                    exp_buffer = {"last_clean": now}
-
-                if not server_id in exp_buffer:
-                    exp_buffer.update([(server_id, {})])
+                xpbuf = LocalGuildData("XP_Buckets")
+                xpbuf.open_for(server_id)
+                past = get_field(xpbuf.opened_data, str(server_id), str(user_id))
                 
                 passed_cd = False
-                if not user_id in exp_buffer[server_id]:
-                    exp_buffer[server_id].update([(user_id, now)])
+                if past is None:
                     passed_cd = True
                 else:
-                    past = exp_buffer[server_id][user_id]
+                    past = dt(past)
                     _10_sec = datetime.timedelta(seconds=10)
-
                     if now - past >= _10_sec:
                         passed_cd = True
-                        exp_buffer[server_id][user_id] = now
                 
                 if passed_cd:
+                    xpbuf.update(server_id, user_id, array(now))
+                    xpbuf.save_changes_for(server_id)
+
                     result = collection.find_one(
                         {
                             "_id": server_id,
@@ -399,10 +440,12 @@ async def on_message(message):
                         },
                         projection={
                             "subguilds.name": True,
-                            "subguilds.members": True
+                            "subguilds.members": True,
+                            "ignore_chats": True
                         }
                     )
-                    if result != None and "subguilds" in result:
+                    to_ignore = get_field(result, "ignore_chats", default=[])
+                    if channel_id not in to_ignore and result != None and "subguilds" in result:
                         sg_found = False
                         sg_name = None
                         S, M = -1, -1

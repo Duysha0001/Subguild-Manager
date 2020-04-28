@@ -15,6 +15,7 @@ from functions import member_limit
 
 #---------- Functions ------------
 from functions import has_roles, get_field, detect, find_alias, Leaderboard
+from functions import Server, Guild
 
 def get_subguild(collection_part, subguild_sign):
     out = None
@@ -85,7 +86,7 @@ async def read_message(channel, user, t_out, client):
             color=discord.Color.blurple()
         )
         await channel.send(content=user.mention, embed=reply)
-        return "Timeout"
+        return None
     else:
         return msg
 
@@ -189,8 +190,8 @@ class guild_use(commands.Cog):
                     reply = discord.Embed(
                         title = "🛠 О смене гильдий",
                         description = (
-                            f"В данный момент Вы являетесь членом гильдии **{user_guild}**.\n"
-                            f"Для того, чтобы войти в другую гильдию, Вам нужно выйти из текущей, однако, **не забывайте**:\n"
+                            f"В данный момент Вы состоите в гильдии **{user_guild}**.\n"
+                            f"Вам нужно выйти из неё, чтобы зайти в другую, однако, **не забывайте**:\n"
                             f"**->** Ваш счётчик опыта обнуляется при выходе.\n"
                             f"Команда для выхода: `{pr}leave-guild`"
                         )
@@ -208,7 +209,7 @@ class guild_use(commands.Cog):
                         reply = discord.Embed(
                             title = "⏳ Ваш запрос отправлен главе",
                             description = (
-                                f"Это закрытая гильдия. Вы станете её участником, как только её глава примет вашу заявку"
+                                f"Это закрытая гильдия. Вы станете её участником, как только её глава примет Вашу заявку"
                             ),
                             color = mmorpg_col("paper")
                         )
@@ -295,36 +296,46 @@ class guild_use(commands.Cog):
             warn_emb = discord.Embed(
                 title = "🛠 Подтверждение",
                 description = (
-                    f"**->** Ваш счётчик опыта обнулится, как только Вы покинете гильдию **{guild_name}**.\nПродолжить?\n"
+                    f"**->** Ваш счётчик опыта в гильдии **{guild_name}** обнулится.\nПродолжить?\n"
                     f"Напишите `да` или `нет`"
                 )
             )
             warn_emb.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             warn = await ctx.send(embed = warn_emb)
 
-            msg = await read_message(ctx.channel, ctx.author, 60, self.client)
-            await warn.delete()
+            wait_for_reply = True
+            user_reply = None
+            while wait_for_reply:
+                msg = await read_message(ctx.channel, ctx.author, 60, self.client)
 
-            if msg != "Timeout":
-                user_reply = msg.content.lower()
-                if user_reply in no:
-                    await ctx.send("Действие отменено")
-                elif user_reply in yes:
-                    collection.find_one_and_update(
-                        {"_id": ctx.guild.id, "subguilds.name": guild_name},
-                        {
-                            "$unset": {
-                                f"subguilds.$.members.{ctx.author.id}": ""
-                            }
+                if msg != None:
+                    user_reply = msg.content.lower()
+                    if user_reply in no or user_reply in yes:
+                        wait_for_reply = False
+                
+                else:
+                    wait_for_reply = False
+            
+            if user_reply in no:
+                await ctx.send("Действие отменено")
+
+            if user_reply in yes:
+                collection.find_one_and_update(
+                    {"_id": ctx.guild.id, "subguilds.name": guild_name},
+                    {
+                        "$unset": {
+                            f"subguilds.$.members.{ctx.author.id}": ""
                         }
-                    )
-                    await remove_join_role(ctx.author, guild_role_id)
-                    reply = discord.Embed(
-                        title = "🚪 Выход",
-                        description = f"Вы вышли из гильдии **{guild_name}**"
-                    )
-                    reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                    await ctx.send(embed = reply)
+                    }
+                )
+                await remove_join_role(ctx.author, guild_role_id)
+                reply = discord.Embed(
+                    title = "🚪 Выход",
+                    description = f"Вы вышли из гильдии **{guild_name}**"
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
+                await warn.delete()
 
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["guilds"])
@@ -385,60 +396,42 @@ class guild_use(commands.Cog):
             lb.set_thumbnail(url = f"{ctx.guild.icon_url}")
             await ctx.send(embed = lb)
         else:
-            subguilds = result["subguilds"]
-
-            stats = []
+            server = Server(result["subguilds"])
+            del result
 
             if filtration == "rating":
                 desc = "Фильтрация одновременно **по опыту и репутации** - рейтинг гильдий"
-
-                total_mes = 0
-                total_rep = 0
-                for sg in subguilds:
-                    total_rep += sg["reputation"]
-                    guild_mes = 0
-                    for key in sg["members"]:
-                        guild_mes += sg["members"][key]["messages"]
-                    total_mes += guild_mes
-                    stats.append((sg["name"], sg["reputation"], guild_mes))
-
-                if total_rep <= 0:
-                    total_rep = 1
-                transfer_weight = total_mes / total_rep
-
-                stats = [(pair[0], pair[1] + round(pair[2] / transfer_weight)) for pair in stats]
+                stats = server.rating_pairs()
             
-            else:
-                for subguild in subguilds:
-                    if filtration == "exp":
-                        desc = "Фильтрация **по количеству опыта**"
-                        total = 0
-                        for str_id in subguild["members"]:
-                            memb = subguild["members"][str_id]
-                            total += memb["messages"]
-                    elif filtration == "roles":
-                        desc = f"Фильтрация **по количеству участников, имеющих роль <@&{role.id}>**"
-                        total = 0
-                        for key in subguild["members"]:
-                            memb = subguild["members"][key]
-                            user_id = int(key)
-                            member = ctx.guild.get_member(user_id)
-                            if member != None and role in member.roles:
-                                total += 1
-                    elif filtration == "mentions":
-                        desc = "Фильтрация **по количеству упоминаний**"
-                        total = subguild["mentions"]
-                    elif filtration == "members":
-                        desc = "Фильтрация **по количеству участников**"
-                        total = len(subguild["members"])
-                    elif filtration == "reputation":
-                        desc = "Фильтрация **по репутации**"
-                        total = subguild["reputation"]
+            elif filtration == "exp":
+                desc = "Фильтрация **по количеству опыта**"
+                stats = server.xp_pairs()
+                
+            elif filtration == "roles":
+                desc = f"Фильтрация **по количеству участников, имеющих роль <@&{role.id}>**"
+                stats = []
+                for subguild in server.guilds:
+                    total = 0
+                    for key in subguild["members"]:
+                        user_id = int(key)
+                        member = ctx.guild.get_member(user_id)
+                        if member != None and role in member.roles:
+                            total += 1
+                    stats.append((subguild["name"], total))
+                
+            elif filtration == "mentions":
+                desc = "Фильтрация **по количеству упоминаний**"
+                stats = server.mentions_pairs()
 
-                    pair = (f"{subguild['name']}", total)
-                    stats.append(pair)
+            elif filtration == "members":
+                desc = "Фильтрация **по количеству участников**"
+                stats = server.member_count_pairs()
+
+            elif filtration == "reputation":
+                desc = "Фильтрация **по репутации**"
+                stats = server.reputation_pairs()
             
-            del result
+            del server
             lb = Leaderboard(stats)
             lb.sort_values()
             pos = 0
@@ -493,12 +486,8 @@ class guild_use(commands.Cog):
                 await ctx.send(embed=reply)
             
             else:
-                pairs = []
-                for sg in result["subguilds"]:
-                    for key in sg["members"]:
-                        memb = sg["members"][key]
-                        user_id = int(key)
-                        pairs.append((user_id, memb["messages"]))
+                pairs = Server(result["subguilds"]).all_member_pairs()
+                del result
                 lb = Leaderboard(pairs, 15)
                 del pairs
                 lb.sort_values()
@@ -544,20 +533,22 @@ class guild_use(commands.Cog):
         collection = db["subguilds"]
 
         result = collection.find_one({"_id": ctx.guild.id})
+        server = Server( get_field(result, "subguilds", default=[]) )
+        del result
         if guild_name is None:
-            subguild = get_subguild(result, ctx.author.id)
+            subguild = server.guild_with_member(ctx.author.id)
             error_text = (
                 "Вас нет в какой-либо гильдии, однако, можно посмотреть профиль конкретной гильдии:\n"
                 f"`{pr}guild-info Название гильдии`\n"
                 f"Список гильдий: `{pr}top`"
             )
         else:
-            subguild = get_subguild(result, guild_name)
+            subguild = server.guild_with_name(guild_name)
             error_text = (
                 f"На сервере нет гильдий с названием **{guild_name}**\n"
                 f"Список гильдий: `{pr}top`"
             )
-        del result
+        del server
             
         if subguild is None:
             reply = discord.Embed(
@@ -568,38 +559,32 @@ class guild_use(commands.Cog):
             reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
         else:
-
-            total_mes = 0
-            total_memb = 0
-            for str_id in subguild["members"]:
-                memb = subguild["members"][str_id]
-                total_mes += memb["messages"]
-                total_memb += 1
-            subguild["members"] = None
+            total_mes = subguild.xp()
+            total_memb = len(subguild.members)
             
             reply = discord.Embed(
-                title = subguild["name"],
+                title = subguild.name,
                 description = (
-                    f"{subguild['description']}\n"
-                    f"**->** Топ участников: `{pr}guild-top 1 {subguild['name']}`"
+                    f"{subguild.description}\n"
+                    f"**->** Топ участников: `{pr}guild-top 1 {subguild.name}`"
                 ),
                 color = mmorpg_col("sky")
             )
-            reply.set_thumbnail(url = subguild["avatar_url"])
-            if subguild['leader_id'] != None:
-                leader = ctx.guild.get_member(subguild["leader_id"])
+            reply.set_thumbnail(url = subguild.avatar_url)
+            if subguild.leader_id != None:
+                leader = ctx.guild.get_member(subguild.leader_id)
                 reply.add_field(name = "💠 Владелец", value = f"> {anf(leader)}", inline=False)
-            if subguild['helper_id'] != None:
-                helper = ctx.guild.get_member(subguild["helper_id"])
+            if subguild.helper_id != None:
+                helper = ctx.guild.get_member(subguild.helper_id)
                 reply.add_field(name = "🔰 Помощник", value = f"> {anf(helper)}", inline=False)
             reply.add_field(name = "👥 Всего участников", value = f"> {total_memb}", inline=False)
             reply.add_field(name = "✨ Всего опыта", value = f"> {total_mes}", inline=False)
-            reply.add_field(name = "🔅 Репутация", value = f"> {subguild['reputation']}", inline=False)
-            if subguild["mentions"] > 0:
-                reply.add_field(name = "📯 Упоминаний", value = f"> {subguild['mentions']}", inline=False)
-            if subguild["role_id"] != None:
-                reply.add_field(name = "🎗 Роль", value = f"> <@&{subguild['role_id']}>", inline=False)
-            if subguild["private"]:
+            reply.add_field(name = "🔅 Репутация", value = f"> {subguild.reputation}", inline=False)
+            if subguild.mentions > 0:
+                reply.add_field(name = "📯 Упоминаний", value = f"> {subguild.mentions}", inline=False)
+            if subguild.role_id != None:
+                reply.add_field(name = "🎗 Роль", value = f"> <@&{subguild.role_id}>", inline=False)
+            if subguild.private:
                 reply.add_field(name = "🔒 Приватность", value = "> Вступление по заявкам")
             await ctx.send(embed = reply)
 
@@ -630,19 +615,21 @@ class guild_use(commands.Cog):
                     "subguilds.avatar_url": True
                 }
             )
+            server = Server( get_field(result, "subguilds", default=[]) )
+            del result
             if guild_name is None:
-                subguild = get_subguild(result, ctx.author.id)
+                subguild = server.guild_with_member(ctx.author.id)
                 error_text = (
                     "Вас нет в какой-либо гильдии, но Вы можете посмотреть топ конкретной гильдии:\n"
                     f"`{pr}guild-top Страница Название гильдии`"
                 )
             else:
-                subguild = get_subguild(result, guild_name)
+                subguild = server.guild_with_name(guild_name)
                 error_text = (
                     f"На сервере нет гильдий с названием **{guild_name}**\n"
                     f"Список гильдий: `{pr}top`"
                 )
-            del result
+            del server
 
             if subguild is None:
                 reply = discord.Embed(
@@ -652,22 +639,20 @@ class guild_use(commands.Cog):
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
-            else:
 
-                members = subguild["members"]
-                total_memb = len(members)
-                if interval * (page_num - 1) >= total_memb:
+            else:
+                total_memb = len(subguild.members)
+                if total_memb > 0 and interval * (page_num - 1) >= total_memb:
                     reply = discord.Embed(
                         title = "💢 Упс",
                         description = f"Страница не найдена. Всего страниц: **{(total_memb - 1)//interval + 1}**"
                     )
                     await ctx.send(embed = reply)
                 else:
-                    pairs = []
-                    for key in members:
-                        member = members[key]
-                        user_id = int(key)
-                        pairs.append((user_id, member["messages"]))
+                    if total_memb == 0:
+                        page_num = 1
+                    pairs = subguild.members_as_pairs()
+                    subguild.forget_members()
                     lb = Leaderboard(pairs, 15)
                     del pairs
                     lb.sort_values()
@@ -682,12 +667,12 @@ class guild_use(commands.Cog):
                         desc += f"**{pos}.** {anf(user)} • **{pair[1]}** ✨\n"
                     
                     lb = discord.Embed(
-                        title = f"👥 Участники гильдии {subguild['name']}",
+                        title = f"👥 Участники гильдии {subguild.name}",
                         description = desc,
                         color = mmorpg_col("clover")
                     )
                     lb.set_footer(text=f"Стр. {page_num}/{total_pages}")
-                    lb.set_thumbnail(url = subguild["avatar_url"])
+                    lb.set_thumbnail(url = subguild.avatar_url)
                     await ctx.send(embed = lb)
 
     @commands.cooldown(1, 5, commands.BucketType.member)

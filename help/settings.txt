@@ -1,6 +1,7 @@
 `{p}settings` - текущие настройки
 `{p}log-channel` - канал отчётов
 `{p}cmd-channels` - каналы реагирования
+`{p}ignore-channels` - каналы игнорирования опыта
 `{p}master-role` - роль мастера гильдий
 `{p}members-limit` - лимит участников на гильдию
 `{p}reset-guilds` - обнулить показатель

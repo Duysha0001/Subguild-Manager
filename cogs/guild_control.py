@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
 import asyncio
-import json, os, datetime
+import os, datetime
 
 import pymongo
 from pymongo import MongoClient
@@ -45,25 +45,9 @@ param_desc = {
         "example": f'`{p}edit-guild privacy [Моя гильдия] on`'
     }
 }
-lc_json = "log_channels.json"
 
 #---------- Functions ------------
 from functions import has_roles, has_permissions, get_field, detect, find_alias, carve_int
-
-# JSON functions
-def delete(filename):
-    if filename in os.listdir("."):
-        os.remove(filename)
-
-def load(filename, default=None):
-    if filename in os.listdir("."):
-        with open(filename, "r", encoding="utf8") as fff:
-            default = json.load(fff)
-    return default
-
-def save(data, filename):
-    with open(filename, "w", encoding="utf8") as fff:
-        json.dump(data, fff)
 
 # Other
 def anf(user):
@@ -165,25 +149,11 @@ async def remove_join_role(member, role_id):
                 pass
     return
 
-async def post_log(guild, log):
-    data = load(lc_json, {})
-    if not f"{guild.id}" in data:
-        collection = db["cmd_channels"]
-        result = collection.find_one(
-            {"_id": guild.id, "log_channel": {"$exists": True}}
-        )
-        lc_id = get_field(result, "log_channel")
-        data.update([(f"{guild.id}", lc_id)])
-
-        save(data, lc_json)
-        del data
-    else:
-        lc_id = data[f"{guild.id}"]
-        del data
-
-    if lc_id is not None:
-        channel = guild.get_channel(lc_id)
-        await channel.send(embed=log)
+async def post_log(guild, channel_id, log):
+    if channel_id is not None:
+        channel = guild.get_channel(channel_id)
+        if channel is not None:
+            await channel.send(embed=log)
 
 #------------ Cog ----------
 class guild_control(commands.Cog):
@@ -194,7 +164,6 @@ class guild_control(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         print(">> Guild controller cog is loaded")
-        delete(lc_json)
     
     #---------- Commands ----------
     @commands.cooldown(1, 5, commands.BucketType.member)
@@ -262,7 +231,10 @@ class guild_control(commands.Cog):
 
             result = collection.find_one(
                 {"_id": ctx.guild.id, "subguilds.name": guild_name},
-                projection={"master_role_id": True}
+                projection={
+                    "master_role_id": True,
+                    "log_channel": True
+                }
             )
             
             if result is None:
@@ -278,6 +250,7 @@ class guild_control(commands.Cog):
                 await ctx.send(embed = reply)
             
             else:
+                lc_id = get_field(result, "log_channel")
                 mr_id = get_field(result, "master_role_id")
                 
                 if not has_roles(ctx.author, [mr_id]) and not has_permissions(ctx.author, ["administrator"]):
@@ -324,7 +297,7 @@ class guild_control(commands.Cog):
                         ),
                         color=mmorpg_col("pancake")
                     )
-                    await post_log(ctx.guild, log)
+                    await post_log(ctx.guild, lc_id, log)
 
     @commands.cooldown(1, 10, commands.BucketType.member)
     @commands.command(aliases = ["create-guild", "createguild", "cg"])
@@ -339,12 +312,12 @@ class guild_control(commands.Cog):
             projection={
                 "_id": True,
                 "subguilds.name": True,
-                "master_role_id": True
+                "master_role_id": True,
+                "log_channel": True
             }
         )
-        mr_id = None
-        if result != None and "master_role_id" in result:
-            mr_id = result["master_role_id"]
+        lc_id = get_field(result, "log_channel")
+        mr_id = get_field(result, "master_role_id")
 
         if not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
             reply = discord.Embed(
@@ -430,7 +403,7 @@ class guild_control(commands.Cog):
                         ),
                         color=mmorpg_col("clover")
                     )
-                    await post_log(ctx.guild, log)
+                    await post_log(ctx.guild, lc_id, log)
 
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["edit-guild", "editguild", "eg", "edit"])
@@ -518,12 +491,19 @@ class guild_control(commands.Cog):
                         value = text
                         if parameter == "name":
                             value = text.replace("[", "")
-                            value = text.replace("]", "")
-                            if value in [sg["name"] for sg in result["subguilds"]]:
+                            value = value.replace("]", "")
+                            if value == "":
                                 correct_arg = False
+                                desc = "Вы не можете назвать гильдию пустой строкой"
+
+                            elif value in [sg["name"] for sg in result["subguilds"]]:
+                                correct_arg = False
+                                desc = f"Гильдия с названием {anf(value)} уже есть"
+                            
+                            if not correct_arg:
                                 reply = discord.Embed(
                                     title = "❌ Ошибка",
-                                    description = f"Гильдия с названием {anf(value)} уже есть",
+                                    description = desc,
                                     color = mmorpg_col("vinous")
                                 )
                                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -654,7 +634,8 @@ class guild_control(commands.Cog):
             projection={
                 "subguilds.name": True,
                 "subguilds.leader_id": True,
-                "master_role_id": True
+                "master_role_id": True,
+                "log_channel": True
             }
         )
 
@@ -669,6 +650,7 @@ class guild_control(commands.Cog):
             )
             await ctx.send(embed = reply)
         else:
+            lc_id = get_field(result, "log_channel")
             mr_id = get_field(result, "master_role_id")
             subguild = get_subguild(result, guild_name)
             del result
@@ -711,7 +693,7 @@ class guild_control(commands.Cog):
                     ),
                     color=mmorpg_col("vinous")
                 )
-                await post_log(ctx.guild, log)
+                await post_log(ctx.guild, lc_id, log)
 
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["req", "request"])

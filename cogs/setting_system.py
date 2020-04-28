@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
 import asyncio
-import json, os, datetime
+import os, datetime
 
 import pymongo
 from pymongo import MongoClient
@@ -14,25 +14,8 @@ db = cluster["guild_data"]
 #---------- Variables ------------
 from functions import member_limit
 
-lc_json = "log_channels.json"
-
 #---------- Functions ------------
 from functions import has_permissions, get_field, detect, find_alias
-
-# JSON functions
-def delete(filename):
-    if filename in os.listdir("."):
-        os.remove(filename)
-
-def load(filename, default=None):
-    if filename in os.listdir("."):
-        with open(filename, "r", encoding="utf8") as fff:
-            default = json.load(fff)
-    return default
-
-def save(data, filename):
-    with open(filename, "w", encoding="utf8") as fff:
-        json.dump(data, fff)
 
 # Other
 def mmorpg_col(col_name):
@@ -57,29 +40,15 @@ async def read_message(channel, user, t_out, client):
             color=discord.Color.blurple()
         )
         await channel.send(content=user.mention, embed=reply)
-        return "Timeout"
+        return None
     else:
         return msg
 
-async def post_log(guild, log):
-    data = load(lc_json, {})
-    if not f"{guild.id}" in data:
-        collection = db["cmd_channels"]
-        result = collection.find_one(
-            {"_id": guild.id, "log_channel": {"$exists": True}}
-        )
-        lc_id = get_field(result, "log_channel")
-        data.update([(f"{guild.id}", lc_id)])
-
-        save(data, lc_json)
-        del data
-    else:
-        lc_id = data[f"{guild.id}"]
-        del data
-
-    if lc_id is not None:
-        channel = guild.get_channel(lc_id)
-        await channel.send(embed=log)
+async def post_log(guild, channel_id, log):
+    if channel_id is not None:
+        channel = guild.get_channel(channel_id)
+        if channel is not None:
+            await channel.send(embed=log)
 
 class setting_system(commands.Cog):
     def __init__(self, client):
@@ -110,7 +79,6 @@ class setting_system(commands.Cog):
             collection = db["cmd_channels"]
             result = collection.find_one({"_id": ctx.guild.id})
             wl_channels = get_field(result, "channels")
-            log_channel_id = get_field(result, "log_channel")
             
             if wl_channels is None:
                 chan_desc = "> Все каналы\n"
@@ -121,23 +89,34 @@ class setting_system(commands.Cog):
                 if chan_desc == "":
                     chan_desc = "> Все каналы\n"
             
-            if log_channel_id is None:
-                lc_desc = "> Отсутствует"
-            else:
-                lc_desc = f"> <#{log_channel_id}>"
-            
             collection = db["subguilds"]
             result = collection.find_one(
                 {"_id": ctx.guild.id, "mentioner_id": {"$exists": True}},
                 projection={
                     "mentioner_id": True,
                     "member_limit": True,
-                    "master_role_id": True
+                    "master_role_id": True,
+                    "ignore_chats": True,
+                    "log_channel": True
                 }
             )
+            log_channel_id = get_field(result, "log_channel")
             pinger_id = get_field(result, "mentioner_id")
             mr_id = get_field(result, "master_role_id")
             lim_desc = get_field(result, "member_limit", default=member_limit)
+            igch = get_field(result, "ignore_chats")
+
+            if igch is None:
+                ig_desc = "> Отсутствуют\n"
+            else:
+                ig_desc = ""
+                for ID in igch:
+                    ig_desc += f"> <#{ID}>\n"
+            
+            if log_channel_id is None:
+                lc_desc = "> Отсутствует"
+            else:
+                lc_desc = f"> <#{log_channel_id}>"
             
             if pinger_id is None:
                 ping_desc = "выключено"
@@ -154,6 +133,8 @@ class setting_system(commands.Cog):
                 description = (
                     f"**Каналы для команд бота:**\n"
                     f"{chan_desc}\n"
+                    f"**Каналы игнорирования опыта:**\n"
+                    f"{ig_desc}\n"
                     f"**Канал логов:**\n"
                     f"{lc_desc}\n\n"
                     f"**Роль мастера гильдий:**\n"
@@ -162,7 +143,7 @@ class setting_system(commands.Cog):
                     f"> {ping_desc}\n\n"
                     f"**Лимит пользователей на гильдию:**\n"
                     f"> {lim_desc}\n\n"
-                    f"-> Список команд: `{pr}help`"
+                    f"-> Список настроек: `{pr}help settings`"
                 ),
                 color = mmorpg_col("lilac")
             )
@@ -171,7 +152,7 @@ class setting_system(commands.Cog):
 
     @commands.cooldown(1, 10, commands.BucketType.member)
     @commands.command(aliases = ["cmd-channels", "cmdchannels", "cc"])
-    async def cmd_channels(self, ctx, text_input):
+    async def cmd_channels(self, ctx, *, text_input):
         collection = db["cmd_channels"]
         raw_ch = text_input.split()
 
@@ -202,20 +183,30 @@ class setting_system(commands.Cog):
             await ctx.send(embed = reply)
 
         else:
-            channels = [detect.channel(ctx.guild, s) for s in raw_ch]
-            if None in channels:
+            channel_ids = []
+            invalid_channel_mentioned = False
+            for s in raw_ch:
+                ch = detect.channel(ctx.guild, s)
+                if ch is None:
+                    invalid_channel_mentioned = True
+                    break
+                elif not ch.id in channel_ids:
+                    channel_ids.append(ch.id)
+
+            if invalid_channel_mentioned:
                 reply = discord.Embed(
                     title = f"💢 Ошибка",
                     description = (
-                        f"В качестве каналов укажите их **#ссылки** или **ID**"
+                        f"В качестве каналов укажите их **#ссылки** или **ID**\n"
+                        f"Или же, чтобы отключить игнорирование - `delete`"
                     ),
                     color=mmorpg_col("vinous")
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
-            else:
-                channel_ids = [c.id for c in channels]
 
+            else:
+                channel_ids = channel_ids[:+30]
                 collection.find_one_and_update(
                     {"_id": ctx.guild.id},
                     {
@@ -224,14 +215,91 @@ class setting_system(commands.Cog):
                     upsert=True
                 )
                 desc = ""
-                for channel in channels:
-                    desc += f"> {channel.mention}\n"
+                for ch in channel_ids:
+                    desc += f"> <#{ch}>\n"
                 reply = discord.Embed(
                     title = "🛠 Каналы настроены",
                     description = (
                         f"Теперь бот реагирует на команды только в каналах:\n"
-                        f"{desc[:+1000]}"
+                        f"{desc}"
                         f"Исключение - администраторы 😉"
+                    ),
+                    color = mmorpg_col("lilac")
+                )
+                await ctx.send(embed = reply)
+
+    @commands.cooldown(1, 10, commands.BucketType.member)
+    @commands.command(aliases = ["ignore-channels", "ignore", "ic"])
+    async def ignore_channels(self, ctx, *, text_input):
+        collection = db["subguilds"]
+        raw_ch = text_input.split()
+
+        if not has_permissions(ctx.author, ["administrator"]):
+            reply = discord.Embed(
+                title = "💢 Недостаточно прав",
+                description = (
+                    "Требуемые права:\n"
+                    "> Администратор"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        
+        elif "delete" in raw_ch[0].lower():
+            collection.find_one_and_update(
+                {"_id": ctx.guild.id},
+                {
+                    "$set": {"ignore_chats": None}
+                }
+            )
+            reply = discord.Embed(
+                title = "♻ Каналы сброшены",
+                description = "Теперь я начисляю опыт за сообщения во всех каналах",
+                color = mmorpg_col("clover")
+            )
+            await ctx.send(embed = reply)
+
+        else:
+            channel_ids = []
+            invalid_channel_mentioned = False
+            for s in raw_ch:
+                ch = detect.channel(ctx.guild, s)
+                if ch is None:
+                    invalid_channel_mentioned = True
+                    break
+                elif not ch.id in channel_ids:
+                    channel_ids.append(ch.id)
+            
+            if invalid_channel_mentioned:
+                reply = discord.Embed(
+                    title = f"💢 Ошибка",
+                    description = (
+                        f"В качестве каналов укажите их **#ссылки** или **ID**\n"
+                        f"Чтобы отключить игнорирование укажите `delete`"
+                    ),
+                    color=mmorpg_col("vinous")
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
+            else:
+                channel_ids = channel_ids[:+30]
+
+                collection.find_one_and_update(
+                    {"_id": ctx.guild.id},
+                    {
+                        "$set": {"ignore_chats": channel_ids}
+                    },
+                    upsert=True
+                )
+                desc = ""
+                for ch in channel_ids:
+                    desc += f"> <#{ch}>\n"
+                reply = discord.Embed(
+                    title = "🛠 Каналы настроены",
+                    description = (
+                        f"Теперь я не буду начислять опыт за сообщения в каналах:\n"
+                        f"{desc}"
                     ),
                     color = mmorpg_col("lilac")
                 )
@@ -256,15 +324,11 @@ class setting_system(commands.Cog):
             await ctx.send(embed = reply)
         
         elif channel_s.lower() == "delete":
-            collection = db["cmd_channels"]
+            collection = db["subguilds"]
             collection.find_one_and_update(
                 {"_id": ctx.guild.id},
                 {"$unset": {"log_channel": ""}}
             )
-            data = load(lc_json, {})
-            data[f"{ctx.guild.id}"] = None
-            save(data, lc_json)
-            del data
             reply = discord.Embed(
                 title="✅ Настроено",
                 description=(
@@ -286,16 +350,13 @@ class setting_system(commands.Cog):
             await ctx.send(embed = reply)
         
         else:
-            collection = db["cmd_channels"]
+            collection = db["subguilds"]
             collection.find_one_and_update(
                 {"_id": ctx.guild.id},
                 {"$set": {"log_channel": channel.id}},
                 upsert=True
             )
-            data = load(lc_json, {})
-            data[f"{ctx.guild.id}"] = channel.id
-            save(data, lc_json)
-            del data
+
             reply = discord.Embed(
                 title="✅ Настроено",
                 description=(
@@ -386,13 +447,14 @@ class setting_system(commands.Cog):
             sys_msg = await ctx.send(embed=reply)
 
             msg = await read_message(ctx.channel, ctx.author, 60, self.client)
-            if msg != "Timeout":
+            if msg != None:
                 reply_text = msg.content.lower()
                 if reply_text in ["yes", "1", "да"]:
                     collection = db["subguilds"]
-                    collection.find_one_and_update(
+                    result = collection.find_one_and_update(
                         {"_id": ctx.guild.id},
-                        {"$unset": {"subguilds": ""}}
+                        {"$unset": {"subguilds": ""}},
+                        projection={"log_channel": True}
                     )
                     reply = discord.Embed(
                         title="♻ Выполнено",
@@ -403,6 +465,7 @@ class setting_system(commands.Cog):
                     await ctx.send(embed=reply)
                     await sys_msg.delete()
 
+                    lc_id = get_field(result, "log_channel")
                     log = discord.Embed(
                         title="🗑 Удалены все гильдии",
                         description=(
@@ -410,7 +473,8 @@ class setting_system(commands.Cog):
                         ),
                         color=discord.Color.dark_red()
                     )
-                    await post_log(ctx.guild, log)
+                    await post_log(ctx.guild, lc_id, log)
+
                 else:
                     reply = discord.Embed(
                         title="❌ Отмена",
@@ -573,6 +637,7 @@ class setting_system(commands.Cog):
             await ctx.send(embed=reply)
 
         else:
+            result = None
             if parameter != "exp":
                 value = 0
                 if parameter == "reputation":
@@ -581,17 +646,22 @@ class setting_system(commands.Cog):
                 else:
                     desc = "None"
                 
-                collection.find_one_and_update(
+                result = collection.find_one_and_update(
                     {"_id": ctx.guild.id},
                     {
                         "$set": {f"subguilds.$[].{parameter}": value}
-                    }
+                    },
+                    projection={"log_channel": True}
                 )
             elif parameter == "exp":
                 desc = "Опыт был обнулён"
                 result = collection.find_one(
                     {"_id": ctx.guild.id},
-                    projection = {"subguilds.name": True, "subguilds.members": True}
+                    projection={
+                        "subguilds.name": True,
+                        "subguilds.members": True,
+                        "log_channel": True
+                    }
                 )
                 if result != None:
                     for sg in result["subguilds"]:
@@ -619,7 +689,8 @@ class setting_system(commands.Cog):
                     f"{desc}"
                 )
             )
-            await post_log(ctx.guild, log)
+            lc_id = get_field(result, "log_channel")
+            await post_log(ctx.guild, lc_id, log)
 
     #========== Errors ===========
     @ping_count.error
@@ -665,6 +736,22 @@ class setting_system(commands.Cog):
                 title = f"❓ Об аргументах `{p}{cmd}`",
                 description = (
                     "**Описание:** настраивает каналы реагирования на команды\n"
+                    f'**Использование:** `{p}{cmd} #канал-1 #канал-2 ...`\n'
+                    f"**Сброс:** `{p}{cmd} delete`"
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+    
+    @ignore_channels.error
+    async def ignore_channels_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            p = ctx.prefix
+            cmd = ctx.command.name
+            reply = discord.Embed(
+                title = f"❓ Об аргументах `{p}{cmd}`",
+                description = (
+                    "**Описание:** убирает начисление опыта за сообщения в указанных каналах.\n"
                     f'**Использование:** `{p}{cmd} #канал-1 #канал-2 ...`\n'
                     f"**Сброс:** `{p}{cmd} delete`"
                 )

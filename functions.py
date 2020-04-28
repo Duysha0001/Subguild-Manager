@@ -80,6 +80,128 @@ def has_any_permission(member, perm_array):
     return out
 
 
+def is_command(word, client):
+    out = False
+    for cmd in client.commands:
+        group = cmd.aliases
+        group.append(cmd.name)
+        if word in group:
+            out = True
+            break
+    return out
+
+
+class Guild:
+    def __init__(self, data):
+        self.name = get_field(data, "name")
+        self.description = get_field(data, "description")
+        self.avatar_url = get_field(data, "avatar_url")
+        self.leader_id = get_field(data, "leader_id")
+        self.helper_id = get_field(data, "helper_id")
+        self.role_id = get_field(data, "role_id")
+        self.private = get_field(data, "private")
+        self.requests = get_field(data, "requests", default=[])
+        self.reputation = get_field(data, "reputation", default=0)
+        self.mentions = get_field(data, "mentions", default=0)
+        self.members = get_field(data, "members", default=[])
+
+    def member_xp(self, ID):
+        if not f"{ID}" in self.members:
+            return None
+        else:
+            return self.members[f"{ID}"]["messages"]
+    
+    def xp(self):
+        out = 0
+        for id_key in self.members:
+            out += self.members[id_key]["messages"]
+        return out
+    
+    def members_as_pairs(self):
+        return [(int(ID), self.members[ID]["messages"]) for ID in self.members]
+
+    def forget_members(self):
+        self.members = {}
+
+
+class Server:
+    def __init__(self, data_list):
+        self.guilds = data_list
+    
+    def get_guilds(self):
+        return [Guild(sg) for sg in self.guilds]
+    
+    def guild_with_name(self, name):
+        out = None
+        for g in self.guilds:
+            if name == g["name"]:
+                out = Guild(g)
+                break
+        return out
+
+    def search_guilds(self, string):
+        string = string.lower()
+        return [Guild(g) for g in self.guilds if string in g["name"].lower()]
+    
+    def guild_with_member(self, ID):
+        out = None
+        for g in self.guilds:
+            if f"{ID}" in g["members"]:
+                out = Guild(g)
+                break
+        return out
+    
+    def search_guild(self, string):
+        out, string = None, string.lower()
+        for g in self.guilds:
+            if string in g["name"].lower():
+                out = Guild(g)
+                break
+        return out
+    
+    def xp_pairs(self):
+        out = []
+        for g in self.guilds:
+            guild = Guild(g)
+            out.append((guild.name, guild.xp()))
+        return out
+    
+    def reputation_pairs(self):
+        return [(g["name"], g["reputation"]) for g in self.guilds]
+    
+    def mentions_pairs(self):
+        return [(g["name"], g["mentions"]) for g in self.guilds]
+    
+    def rating_pairs(self):
+        total_xp, total_rep = 0, 0
+        triplets = []
+        for guild in self.guilds:
+            g = Guild(guild)
+            xp = g.xp()
+            total_rep += g.reputation
+            total_xp += xp
+            triplets.append((g.name, g.reputation, xp))
+        del g, xp
+        k = total_xp / total_rep
+        pairs = [(triplet[0], triplet[1] + int(triplet[2] / k)) for triplet in triplets]
+        del triplets
+        return pairs
+
+    def member_count_pairs(self):
+        out = []
+        for guild in self.guilds:
+            g = Guild(guild)
+            out.append((g.name, len(g.members)))
+        return out
+
+    def all_member_pairs(self):
+        out = []
+        for guild in self.guilds:
+            for key in get_field(guild, "members", default=[]):
+                out.append((int(key), guild["members"][key]["messages"]))
+        return out
+
+
 class Leaderboard:
     def __init__(self, pair_array, interval=10):
         self.pairs = pair_array
