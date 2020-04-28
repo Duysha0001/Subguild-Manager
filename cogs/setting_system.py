@@ -91,7 +91,7 @@ class setting_system(commands.Cog):
             
             collection = db["subguilds"]
             result = collection.find_one(
-                {"_id": ctx.guild.id, "mentioner_id": {"$exists": True}},
+                {"_id": ctx.guild.id},
                 projection={
                     "mentioner_id": True,
                     "member_limit": True,
