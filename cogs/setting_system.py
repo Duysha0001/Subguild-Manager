@@ -64,91 +64,88 @@ class setting_system(commands.Cog):
     @commands.command(aliases=["set", "how-set", "config"])
     async def settings(self, ctx):
         pr = ctx.prefix
-        if not has_permissions(ctx.author, ["administrator"]):
-            reply = discord.Embed(
-                title = "💢 Недостаточно прав",
-                description = (
-                    "Требуемые права:\n"
-                    "> Администратор"
-                ),
-                color = mmorpg_col("vinous")
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
+        collection = db["cmd_channels"]
+        result = collection.find_one({"_id": ctx.guild.id})
+        wl_channels = get_field(result, "channels")
+        
+        if wl_channels is None:
+            chan_desc = "> Все каналы\n"
         else:
-            collection = db["cmd_channels"]
-            result = collection.find_one({"_id": ctx.guild.id})
-            wl_channels = get_field(result, "channels")
-            
-            if wl_channels is None:
+            chan_desc = ""
+            for ID in wl_channels:
+                chan_desc += f"> <#{ID}>\n"
+            if chan_desc == "":
                 chan_desc = "> Все каналы\n"
-            else:
-                chan_desc = ""
-                for ID in wl_channels:
-                    chan_desc += f"> <#{ID}>\n"
-                if chan_desc == "":
-                    chan_desc = "> Все каналы\n"
-            
-            collection = db["subguilds"]
-            result = collection.find_one(
-                {"_id": ctx.guild.id},
-                projection={
-                    "mentioner_id": True,
-                    "member_limit": True,
-                    "master_role_id": True,
-                    "ignore_chats": True,
-                    "log_channel": True
-                }
-            )
-            log_channel_id = get_field(result, "log_channel")
-            pinger_id = get_field(result, "mentioner_id")
-            mr_id = get_field(result, "master_role_id")
-            lim_desc = get_field(result, "member_limit", default=member_limit)
-            igch = get_field(result, "ignore_chats")
+        
+        collection = db["subguilds"]
+        result = collection.find_one(
+            {"_id": ctx.guild.id},
+            projection={
+                "mentioner_id": True,
+                "member_limit": True,
+                "master_role_id": True,
+                "ignore_chats": True,
+                "log_channel": True,
+                "creator_role": True
+            }
+        )
+        log_channel_id = get_field(result, "log_channel")
+        pinger_id = get_field(result, "mentioner_id")
+        mr_id = get_field(result, "master_role_id")
+        cr_id = get_field(result, "creator_role")
+        lim_desc = get_field(result, "member_limit", default=member_limit)
+        igch = get_field(result, "ignore_chats")
 
-            if igch is None:
-                ig_desc = "> Отсутствуют\n"
-            else:
-                ig_desc = ""
-                for ID in igch:
-                    ig_desc += f"> <#{ID}>\n"
-            
-            if log_channel_id is None:
-                lc_desc = "> Отсутствует"
-            else:
-                lc_desc = f"> <#{log_channel_id}>"
-            
-            if pinger_id is None:
-                ping_desc = "выключено"
-            else:
-                ping_desc = f"{ctx.guild.get_member(pinger_id)}"
-            
-            if mr_id is None:
-                mr_desc = "Отсутствует"
-            else:
-                mr_desc = f"<@&{mr_id}>"
-            
-            reply = discord.Embed(
-                title = "⚙ Текущие настройки сервера",
-                description = (
-                    f"**Каналы для команд бота:**\n"
-                    f"{chan_desc}\n"
-                    f"**Каналы игнорирования опыта:**\n"
-                    f"{ig_desc}\n"
-                    f"**Канал логов:**\n"
-                    f"{lc_desc}\n\n"
-                    f"**Роль мастера гильдий:**\n"
-                    f"> {mr_desc}\n\n"
-                    f"**Вести подсчёт упоминаний от:**\n"
-                    f"> {ping_desc}\n\n"
-                    f"**Лимит пользователей на гильдию:**\n"
-                    f"> {lim_desc}\n\n"
-                    f"-> Список настроек: `{pr}help settings`"
-                ),
-                color = mmorpg_col("lilac")
-            )
-            reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
-            await ctx.send(embed = reply)
+        if igch is None:
+            ig_desc = "> Отсутствуют\n"
+        else:
+            ig_desc = ""
+            for ID in igch:
+                ig_desc += f"> <#{ID}>\n"
+        
+        if log_channel_id is None:
+            lc_desc = "> Отсутствует"
+        else:
+            lc_desc = f"> <#{log_channel_id}>"
+        
+        if pinger_id is None:
+            ping_desc = "выключено"
+        else:
+            ping_desc = f"{ctx.guild.get_member(pinger_id)}"
+        
+        if mr_id is None:
+            mr_desc = "Отсутствует"
+        else:
+            mr_desc = f"<@&{mr_id}>"
+        
+        if cr_id is None:
+            cr_desc = "Отсутствует"
+        else:
+            cr_desc = f"<@&{cr_id}>"
+        
+        reply = discord.Embed(
+            title = "⚙ Текущие настройки сервера",
+            description = (
+                f"**Каналы для команд бота:**\n"
+                f"{chan_desc}\n"
+                f"**Каналы игнорирования опыта:**\n"
+                f"{ig_desc}\n"
+                f"**Канал логов:**\n"
+                f"{lc_desc}\n\n"
+                f"**Роль мастера гильдий:**\n"
+                f"> {mr_desc}\n\n"
+                f"**Роль для создавания гильдий:**\n"
+                f"> {cr_desc}\n\n"
+                f"**Вести подсчёт упоминаний от:**\n"
+                f"> {ping_desc}\n\n"
+                f"**Лимит пользователей на гильдию:**\n"
+                f"> {lim_desc}\n\n"
+                f"-> Список настроек: `{pr}help settings`"
+            ),
+            color = mmorpg_col("lilac")
+        )
+        reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
+        await ctx.send(embed = reply)
 
     @commands.cooldown(1, 10, commands.BucketType.member)
     @commands.command(aliases = ["cmd-channels", "cmdchannels", "cc"])
@@ -543,6 +540,62 @@ class setting_system(commands.Cog):
                 await ctx.send(embed = reply)
 
     @commands.cooldown(1, 10, commands.BucketType.member)
+    @commands.command(aliases = ["creator-role"])
+    async def creator(self, ctx, *, r_search):
+        pr = ctx.prefix
+        if not has_permissions(ctx.author, ["administrator"]):
+            reply = discord.Embed(
+                title = "❌ Недостаточно прав",
+                description = (
+                    "Требуемые права:\n"
+                    "> Администратор"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+        else:
+            correct_arg = True
+            role = discord.utils.get(ctx.guild.roles, name = r_search)
+            if role is None:
+                role = detect.role(ctx.guild, r_search)
+            
+            if r_search.lower() == "delete":
+                value = None
+
+            elif role is None:
+                correct_arg = False
+                reply = discord.Embed(
+                    title = "💢 Неверный аргумент",
+                    description = f"Вы ввели {r_search}, подразумевая роль, но она не была найдена",
+                    color = mmorpg_col("vinous")
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
+
+            else:
+                value = role.id
+            
+            if correct_arg:
+                collection = db["subguilds"]
+                collection.find_one_and_update(
+                    {"_id": ctx.guild.id},
+                    {"$set": {"creator_role": value}},
+                    upsert=True
+                )
+
+                desc = "Больше нет роли для создания гильдий"
+                if value != None:
+                    desc = f"Роль создателей гильдий: <@&{value}>\nТеперь все её обладатели могут создавать свои гильдии"
+                reply = discord.Embed(
+                    title = "✅ Настроено",
+                    description = f"{desc}\nТекущие настройки: `{pr}settings`",
+                    color = mmorpg_col("clover")
+                )
+                await ctx.send(embed = reply)
+
+    @commands.cooldown(1, 10, commands.BucketType.member)
     @commands.command(aliases = ["ping-count", "pingcount", "pc"])
     async def ping_count(self, ctx, u_search):
         collection = db["subguilds"]
@@ -804,6 +857,23 @@ class setting_system(commands.Cog):
                     "**Описание:** настраивает роль, дающую её обладателям права на создание и редактирование гильдий, а также на кики из гильдий и начисление репутации.\n"
                     f'**Использование:** `{p}{cmd} @Роль`\n'
                     f"**Сброс:** `{p}{cmd} delete`"
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+    @creator.error
+    async def creator_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            p = ctx.prefix
+            cmd = ctx.command.name
+            reply = discord.Embed(
+                title = f"❓ Об аргументах `{p}{cmd}`",
+                description = (
+                    "**Описание:** настраивает роль, дающую её обладателям права на создание гильдий.\n"
+                    f'**Использование:** `{p}{cmd} @Роль`\n'
+                    f"**Сброс:** `{p}{cmd} delete`\n"
+                    f"**Разрешить всем:** `{p}{cmd} @everyone`"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")

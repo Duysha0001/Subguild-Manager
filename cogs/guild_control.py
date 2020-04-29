@@ -313,20 +313,23 @@ class guild_control(commands.Cog):
                 "_id": True,
                 "subguilds.name": True,
                 "master_role_id": True,
+                "creator_role": True,
                 "log_channel": True
             }
         )
         lc_id = get_field(result, "log_channel")
         mr_id = get_field(result, "master_role_id")
+        cr_id = get_field(result, "creator_role")
 
-        if not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
+        if not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]) and not has_roles(ctx.author, [cr_id]):
             reply = discord.Embed(
                 title = "💢 Недостаточно прав",
                 description = (
                     "Требуемые права:\n"
                     "> Администратор\n"
-                    "Или\n"
-                    "> Мастер гильдий"
+                    "Или иметь одну из ролей\n"
+                    f"> Мастер гильдий (<@&{mr_id}>)\n"
+                    f"> Создатель гильдий (<@&{cr_id}>)"
                 ),
                 color = mmorpg_col("vinous")
             )
