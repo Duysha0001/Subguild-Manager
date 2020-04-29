@@ -14,7 +14,7 @@ db = cluster["guild_data"]
 from functions import member_limit
 
 #---------- Functions ------------
-from functions import has_roles, get_field, detect, find_alias, Leaderboard
+from functions import has_roles, get_field, detect, find_alias, Leaderboard, has_permissions
 from functions import Server, Guild
 
 def get_subguild(collection_part, subguild_sign):
@@ -200,7 +200,7 @@ class guild_use(commands.Cog):
                     await ctx.send(embed = reply)
 
                 else:
-                    if private and ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]]:
+                    if private and ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]):
                         collection.find_one_and_update(
                             {"_id": ctx.guild.id, "subguilds.name": guild_name},
                             {"$addToSet": {"subguilds.$.requests": ctx.author.id}},
@@ -237,18 +237,12 @@ class guild_use(commands.Cog):
                         collection.find_one_and_update(
                             {"_id": ctx.guild.id, "subguilds.name": guild_name},
                             {
-                                "$set": {
-                                    f"subguilds.$.members.{ctx.author.id}": {
-                                        "messages": 0
-                                    }
-                                }
+                                "$set": {f"subguilds.$.members.{ctx.author.id}": {"messages": 0}}
                             }
                         )
                         collection.find_one_and_update(
-                            {"_id": ctx.guild.id, "subguilds.requests": {
-                                "$elemMatch": {"$eq": ctx.author.id}
-                            }},
-                            {"$pull": {"subguilds.$.requests": ctx.author.id}}
+                            {"_id": ctx.guild.id},
+                            {"$pull": {"subguilds.$[].requests": {"$in": [ctx.author.id]}}}
                         )
 
                         await give_join_role(ctx.author, guild_role_id)
@@ -336,6 +330,54 @@ class guild_use(commands.Cog):
                 reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
                 await warn.delete()
+
+    @commands.cooldown(1, 15, commands.BucketType.member)
+    @commands.command(aliases = ["get-guild-role", "give-guild-role", "ggr", "get-role"])
+    async def get_guild_role(self, ctx):
+        pr = ctx.prefix
+        collection = db["subguilds"]
+        result = collection.find_one(
+            {
+                "_id": ctx.guild.id,
+                f"subguilds.members.{ctx.author.id}": {"$exists": True}
+            },
+            projection={
+                "subguilds.role_id": True,
+                f"subguilds.members.{ctx.author.id}": True
+            }
+        )
+        if result is None or "subguilds" not in result:
+            reply = discord.Embed(
+                title = "❌ Ошибка",
+                description = (
+                    "Вас нет ни в одной гильдии\n"
+                    f"Список гильдий: `{pr}top`"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        
+        else:
+            sg = get_subguild(result, ctx.author.id)
+            if sg["role_id"] is None:
+                reply = discord.Embed(
+                    title = "❌ Упс",
+                    description = "У Вашей гильдии не настроена роль для участников",
+                    color = mmorpg_col("vinous")
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
+            
+            else:
+                await give_join_role(ctx.author, sg["role_id"])
+                reply = discord.Embed(
+                    title = "♻ Выполнено",
+                    description = f"Вам была выдана роль гильдии",
+                    color = mmorpg_col("clover")
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
 
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["guilds"])

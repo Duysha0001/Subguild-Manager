@@ -130,8 +130,8 @@ def get_subguild(collection_part, subguild_sign):
     return out
 
 async def give_join_role(member, role_id):
-    if role_id != None:
-        role = discord.utils.get(member.guild.roles, id = role_id)
+    if role_id is not None and member is not None:
+        role = discord.utils.get(member.guild.roles, id=role_id)
         if role != None and role not in member.roles:
             try:
                 await member.add_roles(role)
@@ -140,9 +140,9 @@ async def give_join_role(member, role_id):
     return
 
 async def remove_join_role(member, role_id):
-    if role_id != None:
-        role = discord.utils.get(member.guild.roles, id = role_id)
-        if role != None and role in member.roles:
+    if role_id is not None and member is not None:
+        role = discord.utils.get(member.guild.roles, id=role_id)
+        if role is not None and role in member.roles:
             try:
                 await member.remove_roles(role)
             except Exception:
@@ -825,13 +825,8 @@ class guild_control(commands.Cog):
         result = collection.find_one(
             {"_id": ctx.guild.id, "subguilds.name": guild_name},
             projection={
-                "master_role_id": True,
-                "subguilds.leader_id": True,
-                "subguilds.helper_id": True,
-                "subguilds.requests": True,
-                "subguilds.name": True,
-                "subguilds.private": True,
-                "subguilds.role_id": True
+                "subguilds.members": False,
+                "ignore_chats": False
             }
         )
         if result is None:
@@ -847,15 +842,7 @@ class guild_control(commands.Cog):
             subguild = get_subguild(result, guild_name)
             del result
 
-            id_list = []
-            to_pull = []
-            for ID in subguild["requests"]:
-                member = ctx.guild.get_member(ID)
-                if member is None:
-                    to_pull.append(ID)
-                else:
-                    id_list.append(ID)
-            length = len(id_list)
+            length = len(subguild["requests"])
 
             if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
                 correct_args = False
@@ -910,32 +897,31 @@ class guild_control(commands.Cog):
                 num = carve_int(num)
             
             if correct_args:
-
                 if num == "all":
-                    new_data = {}
-                    new_data.update([(f"subguilds.$.members.{ID}", {"messages": 0}) for ID in id_list])
+                    new_data = {f"subguilds.$.members.{ID}": {"messages": 0} for ID in subguild["requests"]}
 
                     collection.find_one_and_update(
                         {"_id": ctx.guild.id, "subguilds.name": guild_name},
-                        {
-                            "$pull": {"subguilds.$.requests": {"$in": subguild["requests"]}},
-                            "$set": new_data
-                        }
+                        {"$set": new_data}
+                    )
+                    collection.find_one_and_update(
+                        {"_id": ctx.guild.id},
+                        {"$pull": {"subguilds.$[].requests": {"$in": subguild["requests"]}}},
                     )
                     desc = "Все заявки приняты"
-                    for ID in id_list:
+                    for ID in subguild["requests"]:
                         self.client.loop.create_task(give_join_role(ctx.guild.get_member(ID), subguild["role_id"]))
                     
                 else:
-                    user_id = id_list[num-1]
-                    to_pull.append(user_id)
+                    user_id = subguild["requests"][num - 1]
 
                     collection.find_one_and_update(
                         {"_id": ctx.guild.id, "subguilds.name": guild_name},
-                        {
-                            "$pull": {"subguilds.$.requests": {"$in": to_pull}},
-                            "$set": {f"subguilds.$.members.{user_id}": {"messages": 0}}
-                        }
+                        {"$set": {f"subguilds.$.members.{user_id}": {"messages": 0}}}
+                    )
+                    collection.find_one_and_update(
+                        {"_id": ctx.guild.id},
+                        {"$pull": {"subguilds.$[].requests": {"$in": [user_id]}}},
                     )
                     member = ctx.guild.get_member(user_id)
                     desc = f"Заявка {anf(member)} принята"
