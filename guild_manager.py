@@ -206,6 +206,7 @@ async def on_guild_join(guild):
         ),
         color=discord.Color.gold()
     )
+    log.set_footer(text=f"ID: {guild.id}")
     log.set_thumbnail(url=f"{guild.icon_url}")
     await send_to_dev(embed=log)
 
@@ -224,6 +225,7 @@ async def on_guild_remove(guild):
         ),
         color=discord.Color.dark_red()
     )
+    log.set_footer(text=f"ID: {guild.id}")
     log.set_thumbnail(url=f"{guild.icon_url}")
     await send_to_dev(embed=log)
 
