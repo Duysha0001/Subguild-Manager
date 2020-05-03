@@ -141,6 +141,9 @@ class guild_use(commands.Cog):
                 "subguilds.requests": False
             }
         )
+        # GoT event: getting Night Watch data
+        nw_members = get_field(result, "night_watch", "members", default=[])
+
         if result is None:
             reply = discord.Embed(
                 title = "💢 Упс",
@@ -150,7 +153,22 @@ class guild_use(commands.Cog):
                 ),
                 color = mmorpg_col("vinous")
             )
+            reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
+        
+        # GoT event: if-in-night-watch-check
+        elif str(ctx.author.id) in nw_members:
+            reply = discord.Embed(
+                title = "⚔ Ночной Дозор",
+                description = (
+                    "Вам запрещено вступать в гильдии.\n"
+                    f"-> `{pr}night-watch`"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
         else:
             m_lim = get_field(result, "member_limit", default=member_limit)
 

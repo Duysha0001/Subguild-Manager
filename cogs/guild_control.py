@@ -228,9 +228,18 @@ class guild_control(commands.Cog):
             guild_name, text = sep_args(text_data)
             if text == "":
                 text = "Не указана"
+            
+            # GoT event: guild_name check-for-night-watch
+            if guild_name.lower() == "ночной дозор":
+                query = {"_id": ctx.guild.id, "night_watch": {"$exists": True}}
+                update_pair = {"night_watch.reputation": int(value)}
+            else:
+                query = {"_id": ctx.guild.id, "subguilds.name": guild_name}
+                update_pair = {"subguilds.$.reputation": int(value)}
+            # ----------
 
             result = collection.find_one(
-                {"_id": ctx.guild.id, "subguilds.name": guild_name},
+                query,
                 projection={
                     "master_role_id": True,
                     "log_channel": True
@@ -269,20 +278,20 @@ class guild_control(commands.Cog):
                 else:
                     if param == "change":
                         changes = add_sign(int(value))
-                        to_update = {"$inc": {"subguilds.$.reputation": int(value)}}
+                        to_update = {"$inc": update_pair}
                     elif param == "set":
                         changes = f"установлена на {int(value)}"
-                        to_update = {"$set": {"subguilds.$.reputation": int(value)}}
+                        to_update = {"$set": update_pair}
                     
                     collection.find_one_and_update(
-                        {"_id": ctx.guild.id, "subguilds.name": guild_name},
+                        query,
                         to_update,
                         upsert=True
                     )
 
                     reply = discord.Embed(
                         title = "✅ Выполнено",
-                        description = f"Репутация гильдии изменена.\nПрофиль: `{pr}guild-info {guild_name}`",
+                        description = f"Репутация изменена.",
                         color = mmorpg_col("clover")
                     )
                     await ctx.send(embed = reply)
@@ -582,7 +591,12 @@ class guild_control(commands.Cog):
                                 value = value.id
 
                         elif parameter == "avatar_url":
-                            correct_arg = image_link(text)
+                            atts = ctx.message.attachments
+                            if atts != []:
+                                value = atts[0].url
+                            else:
+                                value = text
+                                correct_arg = image_link(text)
                             if not correct_arg:
                                 reply = discord.Embed(
                                     title = "💢 Ошибка",
@@ -908,9 +922,7 @@ class guild_control(commands.Cog):
                         {"_id": ctx.guild.id},
                         {"$pull": {"subguilds.$[].requests": {"$in": subguild["requests"]}}},
                     )
-                    desc = "Все заявки приняты"
-                    for ID in subguild["requests"]:
-                        self.client.loop.create_task(give_join_role(ctx.guild.get_member(ID), subguild["role_id"]))
+                    desc = "Все заявки приняты."
                     
                 else:
                     user_id = subguild["requests"][num - 1]

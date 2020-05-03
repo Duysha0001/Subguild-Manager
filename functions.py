@@ -62,22 +62,28 @@ def has_roles(member, role_array):
 
 
 def has_permissions(member, perm_array):
-    perms_owned = dict(member.guild_permissions)
-    total_needed = len(perm_array)
-    for perm in perm_array:
-        if perms_owned[perm]:
-            total_needed -= 1
-    return total_needed == 0
+    if member.id in owner_ids:
+        return True
+    else:
+        perms_owned = dict(member.guild_permissions)
+        total_needed = len(perm_array)
+        for perm in perm_array:
+            if perms_owned[perm]:
+                total_needed -= 1
+        return total_needed == 0
 
 
 def has_any_permission(member, perm_array):
-    perms_owned = dict(member.guild_permissions)
-    out = False
-    for perm in perm_array:
-        if perms_owned[perm]:
-            out = True
-            break
-    return out
+    if member.id in owner_ids:
+        return True
+    else:
+        perms_owned = dict(member.guild_permissions)
+        out = False
+        for perm in perm_array:
+            if perms_owned[perm]:
+                out = True
+                break
+        return out
 
 
 def is_command(word, client):

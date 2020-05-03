@@ -307,14 +307,16 @@ async def bot_stats(ctx):
 async def help(ctx, *, section=None):
     p = ctx.prefix
     sections = {
-        "settings": ["s", "настройки"],
+        "settings": ["настройки"],
         "guilds": ["гильдии"],
-        "manage guilds": ["set guilds", "настроить гильдию"]
+        "manage guilds": ["set guilds", "настроить гильдию"],
+        "event": ["ивент", "событие"]
     }
     titles = {
         "settings": "О настройках",
         "guilds": "О гильдиях",
-        "manage guilds": "О ведении гильдий"
+        "manage guilds": "О ведении гильдий",
+        "event": "Об игровом событии"
     }
     if section is None:
         reply = discord.Embed(
@@ -323,7 +325,8 @@ async def help(ctx, *, section=None):
                 "Введите команду, интересующую Вас:\n\n"
                 f"`{p}help guilds` - о гильдиях\n"
                 f"`{p}help manage guilds` - ведение гильдии\n"
-                f"`{p}help settings` - настройки\n\n"
+                f"`{p}help settings` - настройки\n"
+                f"`{p}help event` - об ивенте\n\n"
                 f"**Состояние бота:** `{p}bot-stats`\n"
                 "**[Добавить на сервер](https://discordapp.com/api/oauth2/authorize?client_id=677976225876017190&permissions=470150209&scope=bot)**"
             ),
@@ -435,81 +438,93 @@ async def on_message(message):
                     xpbuf.update(server_id, user_id, array(now))
                     xpbuf.save_changes_for(server_id)
 
+                    # GoT event: temporary "$or" query operator
                     result = collection.find_one(
                         {
                             "_id": server_id,
-                            f"subguilds.members.{user_id}": {"$exists": True}
-                        },
-                        projection={
-                            "subguilds.name": True,
-                            "subguilds.members": True,
-                            "ignore_chats": True
+                            "$or": [
+                                {f"subguilds.members.{user_id}": {"$exists": True}},
+                                {f"night_watch.members.{user_id}": {"$exists": True}}
+                            ]
                         }
                     )
                     to_ignore = get_field(result, "ignore_chats", default=[])
-                    if channel_id not in to_ignore and result != None and "subguilds" in result:
-                        sg_found = False
-                        sg_name = None
-                        S, M = -1, -1
-                        for sg in result["subguilds"]:
-                            total_mes = 0
-                            total_memb = 0
-                            for key in sg["members"]:
-                                memb = sg["members"][key]
-
-                                if not sg_found and f"{user_id}" == key:
-                                    sg_found = True
-                                    sg_name = "temporary"
-                                
-                                total_mes += memb["messages"]
-                                total_memb += 1
-                            
-                            if total_mes > S:
-                                S, M = total_mes, total_memb
-                            if sg_name != None and sg_found:
-                                sg_name = None
-                                Si, Mi = total_mes, total_memb
-                            
-                        if sg_found:
-                            income = round(10 * (((M+10) / (Mi+10))**(1/4) * ((S+10) / (Si+10))**(1/2)))
-
+                    if channel_id not in to_ignore and result is not None:
+                        # GoT event: checking where to add XP
+                        if str(user_id) in get_field(result, "night_watch", "members", default=[]):
                             collection.find_one_and_update(
-                                {
-                                    "_id": server_id,
-                                    f"subguilds.members.{user_id}": {"$exists": True}
-                                },
-                                {"$inc": {f"subguilds.$.members.{user_id}.messages": income}}
+                                {"_id": server_id, f"night_watch.members.{user_id}": {"$exists": True}},
+                                {"$inc": {f"night_watch.members.{user_id}": 10}}
                             )
+
+                        else:
+                            sg_found = False
+                            sg_name = None
+                            S, M = -1, -1
+                            for sg in result["subguilds"]:
+                                total_mes = 0
+                                total_memb = 0
+                                for key in sg["members"]:
+                                    memb = sg["members"][key]
+
+                                    if not sg_found and f"{user_id}" == key:
+                                        sg_found = True
+                                        sg_name = "temporary"
+                                    
+                                    total_mes += memb["messages"]
+                                    total_memb += 1
+                                
+                                if total_mes > S:
+                                    S, M = total_mes, total_memb
+                                if sg_name != None and sg_found:
+                                    sg_name = None
+                                    Si, Mi = total_mes, total_memb
+                                
+                            if sg_found:
+                                income = round(10 * (((M+10) / (Mi+10))**(1/4) * ((S+10) / (Si+10))**(1/2)))
+
+                                collection.find_one_and_update(
+                                    {
+                                        "_id": server_id,
+                                        f"subguilds.members.{user_id}": {"$exists": True}
+                                    },
+                                    {"$inc": {f"subguilds.$.members.{user_id}.messages": income}}
+                                )
         
         # Award with mentions
         if mentioned_members != []:
             if collection is None:
                 collection = db["subguilds"]
 
-            search = {
-                "_id": server_id,
-                "mentioner_id": user_id
-            }
             key_words = [f"subguilds.members.{m.id}" for m in mentioned_members]
-            search.update([(kw, {"$exists": True}) for kw in key_words])
+            # GoT event: adding search query
+            key_words.extend([f"night_watch.members.{m.id}" for m in mentioned_members])
             del mentioned_members
-            
-            proj = {"subguilds.name": True}
-            proj.update([(kw, True) for kw in key_words])
+
+            proj = {kw: True for kw in key_words}
+            proj.update([("subguilds.name", True)])
 
             result = collection.find_one(
-                search,
+                {"_id": server_id, "mentioner_id": user_id},
                 projection=proj
             )
             
-            if result != None and "subguilds" in result:
-                subguilds = result["subguilds"]
+            if result is not None:
+                subguilds = get_field(result, "subguilds", default=[])
                 for sg in subguilds:
                     if sg["members"] != {}:
                         collection.find_one_and_update(
                             {"_id": server_id, "subguilds.name": sg["name"]},
                             {"$inc": {"subguilds.$.mentions": len(sg["members"])}}
                         )
+                
+                # GoT event: adding mentions
+                nw = get_field(result, "night_watch")
+                if nw is not None:
+                    collection.find_one_and_update(
+                        {"_id": server_id},
+                        {"$inc": {"night_watch.mentions": len(nw["members"])}}
+                    )
 
 #======== Errors ==========
 # Cooldown
