@@ -178,7 +178,11 @@ class dbl_actions(commands.Cog):
                         memory.update(ctx.guild.id, ctx.author.id, array(now))
                         memory.save_changes_for(ctx.guild.id)
 
-                        g_name = result["subguilds"][0]["name"]
+                        g_name = None
+                        for sg in result["subguilds"]:
+                            if get_field(sg, "members", f"{ctx.author.id}") is not None:
+                                g_name = sg["name"]
+                                break
                         log = discord.Embed(
                             title="🎁 Подарочная репутация",
                             description=(
