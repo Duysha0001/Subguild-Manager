@@ -9,14 +9,14 @@ import json, os, datetime
 import pymongo
 from pymongo import MongoClient
 
+dbl_token = str(os.environ.get("dbl_token"))
 app_string = str(os.environ.get("cluster_app_string"))
 cluster = MongoClient(app_string)
 db = cluster["guild_data"]
 
 #------- Variables --------
-dbl_token = str(os.environ.get("dbl_token"))
 
-vote_reward = 10
+vote_reward = 1
 
 #------- Functions --------
 from functions import get_field
@@ -26,6 +26,12 @@ def array(date_time):
 
 def dt(array):
     return datetime.datetime(*array)
+
+async def post_log(guild, channel_id, log):
+    if channel_id is not None:
+        channel = guild.get_channel(channel_id)
+        if channel is not None:
+            await channel.send(embed=log)
 
 class LocalGuildData:
     def __init__(self, folder_name):
@@ -129,8 +135,8 @@ class dbl_actions(commands.Cog):
                     reply = discord.Embed(
                         title="📭 Вы ещё не голосовали",
                         description=(
-                            "Вы сможете получить подарок, если проголосуете -> **[тык](https://top.gg/bot/677976225876017190/vote)**\n"
-                            "Если Вы уже проголосовали, заберите награду через 1-2 минуты"
+                            "Вы сможете получить подарок, если проголосуете -> **[нажмите чтобы перейти](https://top.gg/bot/677976225876017190/vote)**\n"
+                            "Если Вы уже проголосовали, заберите награду через 2-3 минуты"
                         )
                     )
                     reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
@@ -141,7 +147,12 @@ class dbl_actions(commands.Cog):
                     result = collection.find_one_and_update(
                         {"_id": ctx.guild.id, f"subguilds.members.{ctx.author.id}": {"$exists": True}},
                         {"$inc": {"subguilds.$.reputation": vote_reward}},
-                        projection={"_id": True}
+                        projection={
+                            "_id": True,
+                            "log_channel": True,
+                            f"subguilds.members.{ctx.author.id}": True,
+                            "subguilds.name": True
+                        }
                     )
                     if result is None:
                         reply = discord.Embed(
@@ -166,6 +177,19 @@ class dbl_actions(commands.Cog):
                         memory.open_for(ctx.guild.id)
                         memory.update(ctx.guild.id, ctx.author.id, array(now))
                         memory.save_changes_for(ctx.guild.id)
+
+                        g_name = result["subguilds"][0]["name"]
+                        log = discord.Embed(
+                            title="🎁 Подарочная репутация",
+                            description=(
+                                f"**Пользователь:** {ctx.author}\n"
+                                f"**Гильдия:** {g_name}\n"
+                                f"**Кол-во:** {vote_reward}"
+                            ),
+                            color=discord.Color.gold()
+                        )
+                        lc_id = get_field(result, "log_channel")
+                        await post_log(ctx.guild, lc_id, log)
 
 def setup(client):
     client.add_cog(dbl_actions(client))
