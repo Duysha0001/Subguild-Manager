@@ -645,7 +645,6 @@ class guild_use(commands.Cog):
 
         else:
             subguild = Guild(subguild)
-            del subguild
 
             total_mes = subguild.xp()
             total_memb = len(subguild.members)
@@ -737,7 +736,6 @@ class guild_use(commands.Cog):
 
             else:
                 subguild = Guild(subguild)
-                del subguild
                 total_memb = len(subguild.members)
                 if total_memb > 0 and interval * (page_num - 1) >= total_memb:
                     reply = discord.Embed(
