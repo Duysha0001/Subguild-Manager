@@ -622,7 +622,7 @@ class guild_use(commands.Cog):
         else:
             guild_name = await search_and_choose(get_field(result, "subguilds"), search, ctx.message, ctx.prefix, self.client)
             if guild_name not in [None, 1337]:
-                subguild = Guild(get_subguild(result, guild_name))
+                subguild = get_subguild(result, guild_name)
             else:
                 subguild = guild_name
 
@@ -644,6 +644,9 @@ class guild_use(commands.Cog):
             pass
 
         else:
+            subguild = Guild(subguild)
+            del subguild
+
             total_mes = subguild.xp()
             total_memb = len(subguild.members)
             
@@ -700,6 +703,7 @@ class guild_use(commands.Cog):
                     "subguilds.avatar_url": True
                 }
             )
+            subguild = None
             if search is None:
                 subguild = get_subguild(result, ctx.author.id)
                 error_text = (
@@ -710,7 +714,7 @@ class guild_use(commands.Cog):
             else:
                 guild_name = await search_and_choose(get_field(result, "subguilds"), search, ctx.message, ctx.prefix, self.client)
                 if guild_name not in [None, 1337]:
-                    subguild = Guild(get_subguild(result, guild_name))
+                    subguild = get_subguild(result, guild_name)
                 else:
                     subguild = guild_name
 
@@ -732,6 +736,8 @@ class guild_use(commands.Cog):
                 pass
 
             else:
+                subguild = Guild(subguild)
+                del subguild
                 total_memb = len(subguild.members)
                 if total_memb > 0 and interval * (page_num - 1) >= total_memb:
                     reply = discord.Embed(
