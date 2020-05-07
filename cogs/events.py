@@ -1,8 +1,7 @@
 import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
-import asyncio
-import os, datetime
+import asyncio, os, datetime
 
 import pymongo
 from pymongo import MongoClient

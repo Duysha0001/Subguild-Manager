@@ -15,7 +15,7 @@ db = cluster["guild_data"]
 from functions import member_limit
 
 #---------- Functions ------------
-from functions import has_permissions, get_field, detect, find_alias
+from functions import has_permissions, get_field, detect, find_alias, read_message
 
 # Other
 def mmorpg_col(col_name):
@@ -29,20 +29,6 @@ def mmorpg_col(col_name):
         "pancake": discord.Color.from_rgb(211, 150, 65)
     }
     return colors[col_name]
-
-async def read_message(channel, user, t_out, client):
-    try:
-        msg = await client.wait_for("message", check=lambda message: user.id==message.author.id and channel.id==message.channel.id, timeout=t_out)
-    except asyncio.TimeoutError:
-        reply=discord.Embed(
-            title="🕑 Вы слишком долго не писали",
-            description=f"Таймаут: {t_out}",
-            color=discord.Color.blurple()
-        )
-        await channel.send(content=user.mention, embed=reply)
-        return None
-    else:
-        return msg
 
 async def post_log(guild, channel_id, log):
     if channel_id is not None:

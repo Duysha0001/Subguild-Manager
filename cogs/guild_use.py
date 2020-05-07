@@ -15,7 +15,7 @@ from functions import member_limit
 
 #---------- Functions ------------
 from functions import has_roles, get_field, detect, find_alias, Leaderboard, has_permissions
-from functions import Server, Guild
+from functions import Server, Guild, search_and_choose, read_message
 
 def get_subguild(collection_part, subguild_sign):
     out = None
@@ -43,6 +43,17 @@ def anf(user):
             out += f"\\{s}"
         else:
             out += s
+    return out
+
+def is_command(word, client):
+    word = word.split(maxsplit=1)[0]
+    out = False
+    for cmd in client.commands:
+        group = cmd.aliases
+        group.append(cmd.name)
+        if word in group:
+            out = True
+            break
     return out
 
 def mmorpg_col(col_name):
@@ -75,20 +86,6 @@ def sep_args(text):
                 sep = i
                 break
         return (text[1:sep], text[+sep+1:].strip())
-
-async def read_message(channel, user, t_out, client):
-    try:
-        msg = await client.wait_for("message", check=lambda message: user.id==message.author.id and channel.id==message.channel.id, timeout=t_out)
-    except asyncio.TimeoutError:
-        reply=discord.Embed(
-            title="🕑 Вы слишком долго не писали",
-            description=f"Таймаут: {t_out}",
-            color=discord.Color.blurple()
-        )
-        await channel.send(content=user.mention, embed=reply)
-        return None
-    else:
-        return msg
 
 async def give_join_role(member, role_id):
     if role_id != None:
@@ -126,35 +123,38 @@ class guild_use(commands.Cog):
         print(">> Guild & Stats cog is loaded")
     
     #========= Commands ==========
-    @commands.cooldown(1, 30, commands.BucketType.member)
+    @commands.cooldown(1, 20, commands.BucketType.member)
     @commands.command(aliases = ["join-guild", "joinguild", "jg", "join"])
-    async def join_guild(self, ctx, *, guild_name):
+    async def join_guild(self, ctx, *, search):
         pr = ctx.prefix
         collection = db["subguilds"]
 
         result = collection.find_one(
-            {
-                "_id": ctx.guild.id,
-                "subguilds.name": guild_name
-            },
+            {"_id": ctx.guild.id},
             projection={
-                "subguilds.requests": False
+                "subguilds.requests": False,
+                "subguilds.members": False
             }
         )
+        guild_name = await search_and_choose(get_field(result, "subguilds"), search, ctx.message, ctx.prefix, self.client)
+
         # GoT event: getting Night Watch data
         nw_members = get_field(result, "night_watch", "members", default=[])
 
-        if result is None:
+        if guild_name is None:
             reply = discord.Embed(
                 title = "💢 Упс",
                 description = (
-                    f"На сервере нет гильдий с названием **{guild_name}**\n"
-                    f"Список гильдий: `{pr}guilds`"
+                    f"По поиску **{search}** не найдено гильдий\n"
+                    f"Список гильдий: `{pr}top`"
                 ),
                 color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
+        
+        elif guild_name == 1337:
+            pass
         
         # GoT event: if-in-night-watch-check
         elif str(ctx.author.id) in nw_members:
@@ -170,6 +170,15 @@ class guild_use(commands.Cog):
             await ctx.send(embed = reply)
 
         else:
+            result = collection.find_one(
+                {
+                    "_id": ctx.guild.id,
+                    "subguilds.name": guild_name
+                },
+                projection={
+                    "subguilds.requests": False
+                }
+            )
             m_lim = get_field(result, "member_limit", default=member_limit)
 
             subguild = get_subguild(result, guild_name)
@@ -276,7 +285,7 @@ class guild_use(commands.Cog):
                         reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                         await ctx.send(embed = reply)
 
-    @commands.cooldown(1, 30, commands.BucketType.member)
+    @commands.cooldown(1, 20, commands.BucketType.member)
     @commands.command(aliases = ["leave-guild", "leaveguild", "lg", "leave"])
     async def leave_guild(self, ctx):
         collection = db["subguilds"]
@@ -320,9 +329,9 @@ class guild_use(commands.Cog):
             while wait_for_reply:
                 msg = await read_message(ctx.channel, ctx.author, 60, self.client)
 
-                if msg != None:
+                if msg is not None:
                     user_reply = msg.content.lower()
-                    if user_reply in no or user_reply in yes:
+                    if (user_reply in no) or (user_reply in yes) or is_command(user_reply, self.client):
                         wait_for_reply = False
                 
                 else:
@@ -331,7 +340,7 @@ class guild_use(commands.Cog):
             if user_reply in no:
                 await ctx.send("Действие отменено")
 
-            if user_reply in yes:
+            elif user_reply in yes:
                 collection.find_one_and_update(
                     {"_id": ctx.guild.id, "subguilds.name": guild_name},
                     {
@@ -388,14 +397,24 @@ class guild_use(commands.Cog):
                 await ctx.send(embed = reply)
             
             else:
-                await give_join_role(ctx.author, sg["role_id"])
-                reply = discord.Embed(
-                    title = "♻ Выполнено",
-                    description = f"Вам была выдана роль гильдии",
-                    color = mmorpg_col("clover")
-                )
-                reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                await ctx.send(embed = reply)
+                if sg["role_id"] not in [r.id for r in ctx.author.roles]:
+                    await give_join_role(ctx.author, sg["role_id"])
+                    reply = discord.Embed(
+                        title = "♻ Выполнено",
+                        description = f"Вам была выдана роль гильдии",
+                        color = mmorpg_col("clover")
+                    )
+                    reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                    await ctx.send(embed = reply)
+                
+                else:
+                    reply = discord.Embed(
+                        title = "❌ Ошиблись",
+                        description = f"У Вас уже есть роль гильдии - <@&{sg['role_id']}>",
+                        color = mmorpg_col("vinous")
+                    )
+                    reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                    await ctx.send(embed = reply)
 
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["guilds"])
@@ -588,27 +607,29 @@ class guild_use(commands.Cog):
 
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["guild-info", "guildinfo", "gi"])
-    async def guild_info(self, ctx, *, guild_name = None):
+    async def guild_info(self, ctx, *, search=None):
         pr = ctx.prefix
         collection = db["subguilds"]
 
         result = collection.find_one({"_id": ctx.guild.id})
-        server = Server( get_field(result, "subguilds", default=[]) )
-        del result
-        if guild_name is None:
-            subguild = server.guild_with_member(ctx.author.id)
+        if search is None:
+            subguild = get_subguild(result, ctx.author.id)
             error_text = (
                 "Вас нет в какой-либо гильдии, однако, можно посмотреть профиль конкретной гильдии:\n"
                 f"`{pr}guild-info Название гильдии`\n"
                 f"Список гильдий: `{pr}top`"
             )
         else:
-            subguild = server.guild_with_name(guild_name)
+            guild_name = await search_and_choose(get_field(result, "subguilds"), search, ctx.message, ctx.prefix, self.client)
+            if guild_name not in [None, 1337]:
+                subguild = Guild(get_subguild(result, guild_name))
+            else:
+                subguild = guild_name
+
             error_text = (
-                f"На сервере нет гильдий с названием **{guild_name}**\n"
+                f"По поиску **{search}** не было найдено гильдий\n"
                 f"Список гильдий: `{pr}top`"
             )
-        del server
             
         if subguild is None:
             reply = discord.Embed(
@@ -618,6 +639,10 @@ class guild_use(commands.Cog):
             )
             reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
+        
+        elif subguild == 1337:
+            pass
+
         else:
             total_mes = subguild.xp()
             total_memb = len(subguild.members)
@@ -650,7 +675,7 @@ class guild_use(commands.Cog):
 
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["guild-members", "guildmembers", "gm", "guild-top", "gt"])
-    async def guild_top(self, ctx, page_num="1", *, guild_name = None):
+    async def guild_top(self, ctx, page_num="1", *, search=None):
         pr = ctx.prefix
         collection = db["subguilds"]
         interval = 15
@@ -675,21 +700,24 @@ class guild_use(commands.Cog):
                     "subguilds.avatar_url": True
                 }
             )
-            server = Server( get_field(result, "subguilds", default=[]) )
-            del result
-            if guild_name is None:
-                subguild = server.guild_with_member(ctx.author.id)
+            if search is None:
+                subguild = get_subguild(result, ctx.author.id)
                 error_text = (
-                    "Вас нет в какой-либо гильдии, но Вы можете посмотреть топ конкретной гильдии:\n"
-                    f"`{pr}guild-top Страница Название гильдии`"
-                )
-            else:
-                subguild = server.guild_with_name(guild_name)
-                error_text = (
-                    f"На сервере нет гильдий с названием **{guild_name}**\n"
+                    "Вас нет в какой-либо гильдии. Можно посмотреть топ конкретной гильдии:\n"
+                    f"`{pr}guild-top Страница Название`\n"
                     f"Список гильдий: `{pr}top`"
                 )
-            del server
+            else:
+                guild_name = await search_and_choose(get_field(result, "subguilds"), search, ctx.message, ctx.prefix, self.client)
+                if guild_name not in [None, 1337]:
+                    subguild = Guild(get_subguild(result, guild_name))
+                else:
+                    subguild = guild_name
+
+                error_text = (
+                    f"По поиску **{search}** не было найдено гильдий\n"
+                    f"Список гильдий: `{pr}top`"
+                )
 
             if subguild is None:
                 reply = discord.Embed(
@@ -699,6 +727,9 @@ class guild_use(commands.Cog):
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
+            
+            elif subguild == 1337:
+                pass
 
             else:
                 total_memb = len(subguild.members)
@@ -790,11 +821,11 @@ class guild_use(commands.Cog):
         pr = ctx.prefix
         collection = db["subguilds"]
 
-        guild_name, text = sep_args(text_data)
+        search, text = sep_args(text_data)
         raw_roles = text.split()
         
         result = collection.find_one(
-            {"_id": ctx.guild.id, "subguilds.name": guild_name},
+            {"_id": ctx.guild.id},
             projection={
                 "master_role_id": True,
                 "subguilds.name": True,
@@ -803,14 +834,19 @@ class guild_use(commands.Cog):
                 "subguilds.helper_id": True
             }
         )
-        if result is None:
+        guild_name = await search_and_choose(get_field(result, "subguilds"), search, ctx.message, ctx.prefix, self.client)
+
+        if guild_name is None:
             reply = discord.Embed(
                 title = "💢 Упс",
-                description = f"На сервере нет гильдии с названием **{guild_name}**",
+                description = f"По поиску **{search}** не найдено гильдий",
                 color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
+        
+        elif guild_name == 1337:
+            pass
         
         else:
             roles = [detect.role(ctx.guild, s) for s in raw_roles]
@@ -819,7 +855,7 @@ class guild_use(commands.Cog):
                     title = f"💢 Ошибка",
                     description = (
                         f"В качестве ролей укажите их **@Упоминания** или **ID**\n"
-                        f'**Пример:** `{pr}count-roles "{guild_name}" {ctx.guild.default_role.id}`'
+                        f'**Пример:** `{pr}count-roles [{guild_name}] {ctx.guild.default_role.id}`'
                     )
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -827,6 +863,8 @@ class guild_use(commands.Cog):
 
             else:
                 subguild = get_subguild(result, guild_name)
+                del result
+
                 pairs = [[r, 0] for r in roles]
                 for key in subguild["members"]:
                     user_id = int(key)

@@ -1,3 +1,7 @@
+from discord import Embed, Color
+import asyncio
+
+
 owner_ids = [301295716066787332]
 guild_limit = 30
 member_limit = 500
@@ -86,15 +90,91 @@ def has_any_permission(member, perm_array):
         return out
 
 
-def is_command(word, client):
+def is_command(text, prefix, client):
     out = False
-    for cmd in client.commands:
-        group = cmd.aliases
-        group.append(cmd.name)
-        if word in group:
-            out = True
-            break
+    couple = text.split(maxsplit=1)
+    if couple != []:
+        _1st_word = couple[0]
+        if _1st_word.startswith(prefix):
+            _1st_word = _1st_word[len(prefix):]
+            for cmd in client.commands:
+                if cmd.name == _1st_word or _1st_word in cmd.aliases:
+                    out = True
+                    break
     return out
+
+
+async def try_delete(obj):
+    try:
+        await obj.delete()
+    except Exception:
+        pass
+
+
+async def read_message(channel, user, t_out, client):
+    try:
+        msg = await client.wait_for("message", check=lambda message: user.id==message.author.id and channel.id==message.channel.id, timeout=t_out)
+    except asyncio.TimeoutError:
+        reply = Embed(
+            title="🕑 Вы слишком долго не писали",
+            description=f"Таймаут: {t_out} сек.",
+            color=3867684
+        )
+        await channel.send(content=user.mention, embed=reply)
+        return None
+    else:
+        return msg
+
+
+async def search_and_choose(list_of_subguilds, search, message, prefix, client):
+    author, channel = message.author, message.channel
+    del message
+    
+    if list_of_subguilds is None:
+        results = []
+    else:
+        results = [g["name"] for g in list_of_subguilds if search.lower() in g["name"].lower()]
+    del list_of_subguilds
+
+    if len(results) == 1:
+        return results[0]
+    elif search in results:
+        return search
+    elif results == []:
+        return None
+    else:
+        res_board, pos = "", 1
+        for r in results:
+            res_board += f"`{pos}` {r}\n"
+            pos += 1
+        bot_emb = Embed(
+            title="🔎 Найдено несколько результатов",
+            description=f"Напишите номер подходящего Вам результата\n{res_board}"
+        )
+        bot_emb.set_footer(text=str(author), icon_url=str(author.avatar_url))
+        bot_reply = await channel.send(embed=bot_emb)
+
+        wait_for_reply = True
+        while wait_for_reply:
+            user_reply = await read_message(channel, author, 60, client)
+            if user_reply is None:
+                wait_for_reply = False
+            elif is_command(user_reply.content, prefix, client):
+                wait_for_reply = False
+                user_reply = None
+                await try_delete(bot_reply)
+            elif not user_reply.content.isdigit():
+                pass
+            else:
+                num = int(user_reply.content)
+                if num <= len(results) and num > 0:
+                    wait_for_reply = False
+                    await try_delete(bot_reply)
+        
+        if user_reply is not None:
+            return results[num - 1]
+        else:
+            return 1337
 
 
 class Guild:
@@ -129,13 +209,49 @@ class Guild:
     def forget_members(self):
         self.members = {}
 
+    def average_xp(self):
+        total_xp, total_members = 0, 0
+        for id_key in self.members:
+            total_xp += self.members[id_key]["messages"]
+            total_members += 1
+        return round(total_xp / total_members, 1)
+    
+    def average_rep(self):
+        return round(self.reputation / len(self.members), 1)
+    
+    def average_tags(self):
+        return round(self.mentions / len(self.members), 1)
+
+    def all_averages(self):
+        total_xp, total_members = 0, 0
+        for id_key in self.members:
+            total_xp += self.members[id_key]["messages"]
+            total_members += 1
+        return {
+            "xp": round(total_xp / total_members, 1),
+            "rep": round(self.reputation / total_members, 1),
+            "tags": round(self.mentions / total_members, 1)
+        }
+
 
 class Server:
-    def __init__(self, data_list):
-        self.guilds = data_list
+    def __init__(self, subguilds_data_list):
+        self.guilds = subguilds_data_list
     
     def get_guilds(self):
         return [Guild(sg) for sg in self.guilds]
+    
+    def search_guilds(self, string):
+        string = string.lower()
+        return [Guild(g) for g in self.guilds if string in g["name"].lower()]
+    
+    def search_guild(self, string):
+        out, string = None, string.lower()
+        for g in self.guilds:
+            if string in g["name"].lower():
+                out = Guild(g)
+                break
+        return out
     
     def guild_with_name(self, name):
         out = None
@@ -145,22 +261,10 @@ class Server:
                 break
         return out
 
-    def search_guilds(self, string):
-        string = string.lower()
-        return [Guild(g) for g in self.guilds if string in g["name"].lower()]
-    
     def guild_with_member(self, ID):
         out = None
         for g in self.guilds:
             if f"{ID}" in g["members"]:
-                out = Guild(g)
-                break
-        return out
-    
-    def search_guild(self, string):
-        out, string = None, string.lower()
-        for g in self.guilds:
-            if string in g["name"].lower():
                 out = Guild(g)
                 break
         return out

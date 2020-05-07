@@ -34,16 +34,23 @@ statuses = {
 exp_buffer = {"last_clean": datetime.datetime.utcnow()}
 
 #======== Functions ========
-from functions import get_field, find_alias, has_permissions
+from functions import get_field, find_alias, has_permissions, is_command, Guild
 
-def is_command(word):
-    out = False
-    for cmd in client.commands:
-        group = cmd.aliases
-        group.append(cmd.name)
-        if word in group:
-            out = True
-            break
+def get_subguild(collection_part, subguild_sign):
+    out = None
+    if collection_part != None and "subguilds" in collection_part:
+        user_id_given = "int" in f"{type(subguild_sign)}".lower()
+
+        subguilds = collection_part["subguilds"]
+        for subguild in subguilds:
+            if user_id_given:
+                if f"{subguild_sign}" in subguild["members"]:
+                    out = subguild
+                    break
+            else:
+                if subguild["name"] == subguild_sign:
+                    out = subguild
+                    break
     return out
 
 def anf(user):
@@ -360,8 +367,64 @@ async def help(ctx, *, section=None):
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
 
+@commands.cooldown(1, 30, commands.BucketType.user)
+@client.command(aliases=["load"])
+async def download(ctx, *, guild_name):
+    pr = ctx.prefix
+    collection = db["subguilds"]
+    result = collection.find_one(
+        {"_id": ctx.guild.id, "subguilds.name": guild_name},
+        projection={"subguilds": True}
+    )
+    if result is None:
+        reply = discord.Embed(
+            title = "💢 Упс",
+            description = (
+                f"На сервере нет гильдий с названием **{guild_name}**\n"
+                f"Список гильдий: `{pr}top`"
+            ),
+            color = mmorpg_col("vinous")
+        )
+        await ctx.send(embed = reply)
+    
+    else:
+        g = Guild(get_subguild(result, guild_name))
+        del result
+
+        leader = None
+        if g.leader_id is not None:
+            leader = ctx.guild.get_member(g.leader_id)
+        helper = None
+        if g.helper_id is not None:
+            leader = ctx.guild.get_member(g.helper_id)
+        
+        table = (
+            "Репутация\tУпоминания\n"
+            f"{g.reputation}\t{g.mentions}\n"
+            "Глава\tID главы\tПомощник\tID помощника\n"
+            f"{leader}\t{g.leader_id}\t{helper}\t{g.helper_id}\n\n"
+            "Участник\tID участника\tОпыт участника\n"
+        )
+        members = g.members_as_pairs()
+        g.forget_members()
+        members.sort(key=lambda pair: pair[1], reverse=True)
+        for pair in members:
+            member = ctx.guild.get_member(pair[0])
+            table += f"{member}\t{pair[0]}\t{pair[1]}\n"
+        del g
+
+        with open(f"Guild_download_{ctx.author.id}.txt", "w", encoding="utf8") as fff:
+            fff.write(table)
+            del table
+        with open(f"Guild_download_{ctx.author.id}.txt", "rb") as temp_file:
+            await ctx.send(
+                f"{ctx.author.mention}, данные гильдии {guild_name}\nВы можете скопировать их и вставить в таблицу ;)",
+                file=discord.File(temp_file, "Guild Profile Tabulated.txt")
+            )
+        os.remove(f"Guild_download_{ctx.author.id}.txt")
+
 #======== Events ========
-@client.event
+@client.event    # TEMPORARY INACTIVE EVENT
 async def on_message(message):
     # If not direct message
     if message.guild != None:
@@ -374,14 +437,7 @@ async def on_message(message):
         if not message.author.bot:
             # Check if command and process command
 
-            mes_content = message.content.strip(prefix)
-            words = mes_content.split(maxsplit=1)
-
-            first_word = None
-            if len(words) > 0:
-                first_word = words[0]
-
-            if is_command(first_word):
+            if is_command(message.content, prefix, client):
                 if has_permissions(message.author, ["administrator"]):
                     await client.process_commands(message)
                 else:
@@ -535,14 +591,33 @@ async def on_command_error(ctx, error):
         def TimeExpand(time):
             if time//60 > 0:
                 return str(time//60)+'мин. '+str(time%60)+' сек.'
-            else:
+            elif time > 0:
                 return str(time)+' сек.'
+            else:
+                return f"0.1 сек."
         
         cool_notify = discord.Embed(
                 title='⏳ Подождите немного',
                 description = f"Осталось {TimeExpand(int(error.retry_after))}"
             )
         await ctx.send(embed=cool_notify)
+
+@download.error
+async def download_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix
+        cmd = ctx.command.name
+        reply = discord.Embed(
+            title = f"❓ Об аргументах `{p}{cmd}`",
+            description = (
+                "**Описание:** скачивает данные гильдии в виде табулированного .txt файла\n"
+                f"**Использование:** `{p}{cmd} Название гильдии`\n"
+                f"**Пример:** `{p}{cmd} Короли`"
+            )
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed = reply)
+
 
 async def change_status(status_text, str_activity):
     await client.wait_until_ready()
@@ -555,7 +630,7 @@ client.loop.create_task(change_status(f"{prefix}help", "online"))
 #--------- Loading Cogs ---------
 
 for file_name in os.listdir("./cogs"):
-    if file_name.endswith(".py"):
+    if file_name.endswith(".py"):  # TEMPORARY PARTIAL LOAD
         client.load_extension(f"cogs.{file_name[:-3]}")
 
 client.run(token)
