@@ -1,6 +1,7 @@
 discord
 dblpy
 asyncio
+XlsxWriter
 pymongo
 dnspython
 Pymoe

@@ -2,8 +2,8 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
 import asyncio
-import os, json
-import datetime
+import os, json, datetime
+from xlsxwriter import Workbook
 
 import pymongo
 from pymongo import MongoClient
@@ -398,33 +398,37 @@ async def download(ctx, *, guild_name):
         if g.helper_id is not None:
             leader = ctx.guild.get_member(g.helper_id)
         
-        table = (
-            "Репутация\tУпоминания\n"
-            f"{g.reputation}\t{g.mentions}\n"
-            "Глава\tID главы\tПомощник\tID помощника\n"
-            f"{leader}\t{g.leader_id}\t{helper}\t{g.helper_id}\n\n"
-            "Участник\tID участника\tОпыт участника\n"
-        )
+        table = [
+            ["Репутация", f"{g.reputation}", "", "Глава", f"{leader}", "", "Участник"],
+            ["Упоминания", f"{g.mentions}", "", "ID главы", f"{g.leader_id}", "", "ID участника"],
+            ["", "", "", "Помощник", f"{helper}", "", "Опыт участника"],
+            ["", "", "", "ID помощника", f"{g.helper_id}"]
+        ]
         members = g.members_as_pairs()
         g.forget_members()
         members.sort(key=lambda pair: pair[1], reverse=True)
         for pair in members:
             member = ctx.guild.get_member(pair[0])
-            table += f"{member}\t{pair[0]}\t{pair[1]}\n"
+            table[0].append(f"{member}")
+            table[1].append(f"{pair[0]}")
+            table[2].append(f"{pair[1]}")
         del g
 
-        with open(f"Guild_download_{ctx.author.id}.txt", "w", encoding="utf8") as fff:
-            fff.write(table)
-            del table
-        with open(f"Guild_download_{ctx.author.id}.txt", "rb") as temp_file:
+        workbook = Workbook(f"Guild_download_{ctx.author.id}.xlsx")
+        worksheet = workbook.add_worksheet()
+        for i, column in enumerate(table):
+            worksheet.write_column(0, i, column)
+        workbook.close()
+
+        with open(f"Guild_download_{ctx.author.id}.xlsx", "rb") as temp_file:
             await ctx.send(
-                f"{ctx.author.mention}, данные гильдии {guild_name}\nВы можете скопировать их и вставить в таблицу ;)",
-                file=discord.File(temp_file, "Guild Profile Tabulated.txt")
+                f"{ctx.author.mention}, данные гильдии {guild_name}",
+                file=discord.File(temp_file, "Guild Profile Tabulated.xlsx")
             )
-        os.remove(f"Guild_download_{ctx.author.id}.txt")
+        os.remove(f"Guild_download_{ctx.author.id}.xlsx")
 
 #======== Events ========
-@client.event    # TEMPORARY INACTIVE EVENT
+#@client.event    # TEMPORARY INACTIVE EVENT
 async def on_message(message):
     # If not direct message
     if message.guild != None:
@@ -630,7 +634,7 @@ client.loop.create_task(change_status(f"{prefix}help", "online"))
 #--------- Loading Cogs ---------
 
 for file_name in os.listdir("./cogs"):
-    if file_name.endswith(".py"):  # TEMPORARY PARTIAL LOAD
+    if file_name.endswith(".py") and not file_name.startswith("dbl"):  # TEMPORARY PARTIAL LOAD
         client.load_extension(f"cogs.{file_name[:-3]}")
 
 client.run(token)
