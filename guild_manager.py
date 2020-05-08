@@ -428,7 +428,7 @@ async def download(ctx, *, guild_name):
         os.remove(f"Guild_download_{ctx.author.id}.xlsx")
 
 #======== Events ========
-#@client.event    # TEMPORARY INACTIVE EVENT
+@client.event
 async def on_message(message):
     # If not direct message
     if message.guild != None:
