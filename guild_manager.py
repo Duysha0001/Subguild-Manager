@@ -7,17 +7,48 @@ from xlsxwriter import Workbook
 
 import pymongo
 from pymongo import MongoClient
+app_string = str(os.environ.get("cluster_app_string"))
+cluster = MongoClient(app_string)
+db = cluster["guild_data"]
 
-prefix = "."
-client = commands.Bot(command_prefix=prefix)
+default_prefix = "."
+
+async def get_prefix(client, message):
+    collection = db["cmd_channels"]
+    result = collection.find_one(
+        {"_id": message.guild.id}
+    )
+    cmd_channels_ids = result.get("channels")
+    if cmd_channels_ids is None:
+        cmd_channels_ids = [message.channel.id]
+    else:
+        server_channel_ids = [c.id for c in message.guild.text_channels]
+        channels_exist = False
+        for _id in cmd_channels_ids:
+            if _id in server_channel_ids:
+                channels_exist = True
+                break
+        if not channels_exist:
+            cmd_channels_ids = [message.channel.id]
+
+    prefix = get_field(result, "prefix", default=default_prefix)
+    if message.channel.id not in cmd_channels_ids and not has_permissions(message.author, ["administrator"]):
+        reply = discord.Embed(
+            title="⚠ Канал",
+            description="Пожалуйста, используйте команды в другом канале.",
+            color=discord.Color.gold()
+        )
+        reply.set_footer(text = f"{message.author}", icon_url=f"{message.author.avatar_url}")
+        await message.channel.send(embed=reply, delete_after=5)
+        return " _"
+    else:
+        return prefix
+
+client = commands.Bot(command_prefix=get_prefix)
 client.remove_command("help")
 
 token = str(os.environ.get("guild_manager_token"))
-app_string = str(os.environ.get("cluster_app_string"))
 default_avatar_url = "https://cdn.discordapp.com/attachments/664230839399481364/677534213418778660/default_image.png"
-
-cluster = MongoClient(app_string)
-db = cluster["guild_data"]
 
 #========Lists and values=========
 from functions import guild_limit, member_limit, owner_ids
@@ -30,8 +61,6 @@ statuses = {
     "online": discord.Status.online,
     "invisible": discord.Status.invisible
 }
-
-exp_buffer = {"last_clean": datetime.datetime.utcnow()}
 
 #======== Functions ========
 from functions import get_field, find_alias, has_permissions, is_command, Guild
@@ -158,7 +187,6 @@ class LocalGuildData:
 async def on_ready():
     print(
         ">> Bot is ready\n"
-        f">> Prefix is {prefix}\n"
         f">> Bot user: {client.user}\n"
         ">> Loading Cogs...\n"
     )
@@ -176,7 +204,7 @@ async def on_member_remove(member):
 
 @client.event
 async def on_guild_join(guild):
-    p = prefix
+    p = default_prefix
     greet = discord.Embed(
         title="🎁 Спасибо за то, что выбрали Subguild Manager!",
         description=(
@@ -428,7 +456,7 @@ async def download(ctx, *, guild_name):
         os.remove(f"Guild_download_{ctx.author.id}.xlsx")
 
 #======== Events ========
-@client.event
+@client.event    # TEMPORARY INACTIVE EVENT
 async def on_message(message):
     # If not direct message
     if message.guild != None:
@@ -439,117 +467,86 @@ async def on_message(message):
         mentioned_members = message.mentions
 
         if not message.author.bot:
-            # Check if command and process command
+            if message.content in [f"<@!{client.user.id}>", f"<@{client.user.id}>"]:
+                collection = db["cmd_channels"]
+                result = collection.find_one({"_id": server_id}, projection={"prefix": True})
+                await message.channel.send(f"Мой префикс: `{result.get('prefix', default_prefix)}`")
 
-            if is_command(message.content, prefix, client):
-                if has_permissions(message.author, ["administrator"]):
-                    await client.process_commands(message)
-                else:
-                    collection = db["cmd_channels"]
-                    result = collection.find_one({"_id": server_id})
+            await client.process_commands(message)
 
-                    if result is None:
-                        wl_channels = [channel_id]
-                    elif result["channels"] is None:
-                        wl_channels = [channel_id]
-                    else:
-                        wl_channels = result["channels"]
-                        server_channel_ids = [c.id for c in message.guild.channels]
-
-                        total_not_exist = 0
-                        for wl_channel_id in wl_channels:
-                            if wl_channel_id not in server_channel_ids:
-                                total_not_exist += 1
-                        
-                        if total_not_exist >= len(wl_channels):
-                            wl_channels = [channel_id]
-                    
-                    if channel_id in wl_channels:
-                        await client.process_commands(message)
-                    
-                    else:
-                        reply = discord.Embed(
-                            title="⚠ Канал",
-                            description="Пожалуйста, используйте команды в другом канале.",
-                            color=discord.Color.gold()
-                        )
-                        reply.set_footer(text = f"{message.author}", icon_url=f"{message.author.avatar_url}")
-                        await message.channel.send(embed=reply)
-
-            else:
             # Check cooldown and calculate income
-                collection = db["subguilds"]
-                now = datetime.datetime.utcnow()
+            collection = db["subguilds"]
+            now = datetime.datetime.utcnow()
 
-                xpbuf = LocalGuildData("XP_Buckets")
-                xpbuf.open_for(server_id)
-                past = get_field(xpbuf.opened_data, str(server_id), str(user_id))
-                
-                passed_cd = False
-                if past is None:
+            xpbuf = LocalGuildData("XP_Buckets")
+            xpbuf.open_for(server_id)
+            past = get_field(xpbuf.opened_data, str(server_id), str(user_id))
+            
+            passed_cd = False
+            if past is None:
+                passed_cd = True
+            else:
+                past = dt(past)
+                _10_sec = datetime.timedelta(seconds=10)
+                if now - past >= _10_sec:
                     passed_cd = True
-                else:
-                    past = dt(past)
-                    _10_sec = datetime.timedelta(seconds=10)
-                    if now - past >= _10_sec:
-                        passed_cd = True
-                
-                if passed_cd:
-                    xpbuf.update(server_id, user_id, array(now))
-                    xpbuf.save_changes_for(server_id)
+            
+            if passed_cd:
+                xpbuf.update(server_id, user_id, array(now))
+                xpbuf.save_changes_for(server_id)
 
-                    # GoT event: temporary "$or" query operator
-                    result = collection.find_one(
-                        {
-                            "_id": server_id,
-                            "$or": [
-                                {f"subguilds.members.{user_id}": {"$exists": True}},
-                                {f"night_watch.members.{user_id}": {"$exists": True}}
-                            ]
-                        }
-                    )
-                    to_ignore = get_field(result, "ignore_chats", default=[])
-                    if channel_id not in to_ignore and result is not None:
-                        # GoT event: checking where to add XP
-                        if str(user_id) in get_field(result, "night_watch", "members", default=[]):
+                # GoT event: temporary "$or" query operator
+                result = collection.find_one(
+                    {
+                        "_id": server_id,
+                        "$or": [
+                            {f"subguilds.members.{user_id}": {"$exists": True}},
+                            {f"night_watch.members.{user_id}": {"$exists": True}}
+                        ]
+                    }
+                )
+                to_ignore = get_field(result, "ignore_chats", default=[])
+                if channel_id not in to_ignore and result is not None:
+                    # GoT event: checking where to add XP
+                    if str(user_id) in get_field(result, "night_watch", "members", default=[]):
+                        collection.find_one_and_update(
+                            {"_id": server_id, f"night_watch.members.{user_id}": {"$exists": True}},
+                            {"$inc": {f"night_watch.members.{user_id}": 10}}
+                        )
+
+                    else:
+                        sg_found = False
+                        sg_name = None
+                        S, M = -1, -1
+                        for sg in result["subguilds"]:
+                            total_mes = 0
+                            total_memb = 0
+                            for key in sg["members"]:
+                                memb = sg["members"][key]
+
+                                if not sg_found and f"{user_id}" == key:
+                                    sg_found = True
+                                    sg_name = "temporary"
+                                
+                                total_mes += memb["messages"]
+                                total_memb += 1
+                            
+                            if total_mes > S:
+                                S, M = total_mes, total_memb
+                            if sg_name != None and sg_found:
+                                sg_name = None
+                                Si, Mi = total_mes, total_memb
+                            
+                        if sg_found:
+                            income = round(10 * (((M+10) / (Mi+10))**(1/4) * ((S+10) / (Si+10))**(1/2)))
+
                             collection.find_one_and_update(
-                                {"_id": server_id, f"night_watch.members.{user_id}": {"$exists": True}},
-                                {"$inc": {f"night_watch.members.{user_id}": 10}}
+                                {
+                                    "_id": server_id,
+                                    f"subguilds.members.{user_id}": {"$exists": True}
+                                },
+                                {"$inc": {f"subguilds.$.members.{user_id}.messages": income}}
                             )
-
-                        else:
-                            sg_found = False
-                            sg_name = None
-                            S, M = -1, -1
-                            for sg in result["subguilds"]:
-                                total_mes = 0
-                                total_memb = 0
-                                for key in sg["members"]:
-                                    memb = sg["members"][key]
-
-                                    if not sg_found and f"{user_id}" == key:
-                                        sg_found = True
-                                        sg_name = "temporary"
-                                    
-                                    total_mes += memb["messages"]
-                                    total_memb += 1
-                                
-                                if total_mes > S:
-                                    S, M = total_mes, total_memb
-                                if sg_name != None and sg_found:
-                                    sg_name = None
-                                    Si, Mi = total_mes, total_memb
-                                
-                            if sg_found:
-                                income = round(10 * (((M+10) / (Mi+10))**(1/4) * ((S+10) / (Si+10))**(1/2)))
-
-                                collection.find_one_and_update(
-                                    {
-                                        "_id": server_id,
-                                        f"subguilds.members.{user_id}": {"$exists": True}
-                                    },
-                                    {"$inc": {f"subguilds.$.members.{user_id}.messages": income}}
-                                )
         
         # Award with mentions
         if mentioned_members != []:
@@ -614,7 +611,7 @@ async def download_error(ctx, error):
         reply = discord.Embed(
             title = f"❓ Об аргументах `{p}{cmd}`",
             description = (
-                "**Описание:** скачивает данные гильдии в виде табулированного .txt файла\n"
+                "**Описание:** скачивает данные гильдии в виде .xlsx таблицы\n"
                 f"**Использование:** `{p}{cmd} Название гильдии`\n"
                 f"**Пример:** `{p}{cmd} Короли`"
             )
@@ -629,12 +626,12 @@ async def change_status(status_text, str_activity):
         activity=discord.Game(status_text),
         status=get_field(statuses, str_activity)
     )
-client.loop.create_task(change_status(f"{prefix}help", "online"))
+client.loop.create_task(change_status(f"{default_prefix}help", "online"))
 
 #--------- Loading Cogs ---------
 
 for file_name in os.listdir("./cogs"):
-    if file_name.endswith(".py"):
+    if file_name.endswith(".py"):  # TEMPORARY PARTIAL LOAD
         client.load_extension(f"cogs.{file_name[:-3]}")
 
 client.run(token)

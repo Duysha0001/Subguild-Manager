@@ -53,6 +53,7 @@ class setting_system(commands.Cog):
         collection = db["cmd_channels"]
         result = collection.find_one({"_id": ctx.guild.id})
         wl_channels = get_field(result, "channels")
+        c_prefix = get_field(result, "prefix", default=".")
         
         if wl_channels is None:
             chan_desc = "> Все каналы\n"
@@ -112,6 +113,7 @@ class setting_system(commands.Cog):
         reply = discord.Embed(
             title = "⚙ Текущие настройки сервера",
             description = (
+                f"**Префикс:** `{c_prefix}`\n\n"
                 f"**Каналы для команд бота:**\n"
                 f"{chan_desc}\n"
                 f"**Каналы игнорирования опыта:**\n"
@@ -132,6 +134,37 @@ class setting_system(commands.Cog):
         )
         reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = reply)
+
+    @commands.cooldown(1, 10, commands.BucketType.member)
+    @commands.command(aliases = ["set-prefix", "setprefix", "sp"])
+    async def prefix(self, ctx, *, text_input):
+        text_input = text_input[:30]
+        if not has_permissions(ctx.author, ["administrator"]):
+            reply = discord.Embed(
+                title = "💢 Недостаточно прав",
+                description = (
+                    "Требуемые права:\n"
+                    "> Администратор"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
+            await ctx.send(embed = reply)
+        
+        else:
+            collection = db["cmd_channels"]
+            collection.find_one_and_update(
+                {"_id": ctx.guild.id},
+                {"$set": {"prefix": text_input}},
+                upsert=True
+            )
+            reply = discord.Embed(
+                title="✅ Настроено",
+                description=f"Новый префикс: {text_input}\nТекущие настройки: `{text_input}settings`",
+                color=mmorpg_col("clover")
+            )
+            reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
+            await ctx.send(embed = reply)
 
     @commands.cooldown(1, 10, commands.BucketType.member)
     @commands.command(aliases = ["cmd-channels", "cmdchannels", "cc"])
@@ -734,6 +767,22 @@ class setting_system(commands.Cog):
             await post_log(ctx.guild, lc_id, log)
 
     #========== Errors ===========
+    @prefix.error
+    async def prefix_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            p = ctx.prefix
+            cmd = ctx.command.name
+            reply = discord.Embed(
+                title = f"❓ Об аргументах `{p}{cmd}`",
+                description = (
+                    "**Описание:** настраивает префикс бота.\n"
+                    f"**Использование:** `{p}{cmd} Новый_префикс`\n"
+                    f"**Пример:** `{p}{cmd} !`"
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
     @ping_count.error
     async def ping_count_error(self, ctx, error):
         if isinstance(error, commands.MissingRequiredArgument):
