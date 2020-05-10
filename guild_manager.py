@@ -39,7 +39,7 @@ async def get_prefix(client, message):
             color=discord.Color.gold()
         )
         reply.set_footer(text = f"{message.author}", icon_url=f"{message.author.avatar_url}")
-        await message.channel.send(embed=reply, delete_after=5)
+        #await message.channel.send(embed=reply, delete_after=5)
         return " _"
     else:
         return prefix
