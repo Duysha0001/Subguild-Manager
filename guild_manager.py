@@ -18,31 +18,35 @@ async def get_prefix(client, message):
     result = collection.find_one(
         {"_id": message.guild.id}
     )
-    cmd_channels_ids = result.get("channels")
-    if cmd_channels_ids is None:
-        cmd_channels_ids = [message.channel.id]
-    else:
-        server_channel_ids = [c.id for c in message.guild.text_channels]
-        channels_exist = False
-        for _id in cmd_channels_ids:
-            if _id in server_channel_ids:
-                channels_exist = True
-                break
-        if not channels_exist:
-            cmd_channels_ids = [message.channel.id]
-
     prefix = get_field(result, "prefix", default=default_prefix)
-    if message.channel.id not in cmd_channels_ids and not has_permissions(message.author, ["administrator"]):
-        reply = discord.Embed(
-            title="⚠ Канал",
-            description="Пожалуйста, используйте команды в другом канале.",
-            color=discord.Color.gold()
-        )
-        reply.set_footer(text = f"{message.author}", icon_url=f"{message.author.avatar_url}")
-        #await message.channel.send(embed=reply, delete_after=5)
-        return " _"
+    if is_command(message.content, prefix, client):
+        cmd_channels_ids = get_field(result, "channels")
+        if cmd_channels_ids is None:
+            cmd_channels_ids = [message.channel.id]
+        else:
+            server_channel_ids = [c.id for c in message.guild.text_channels]
+            channels_exist = False
+            for _id in cmd_channels_ids:
+                if _id in server_channel_ids:
+                    channels_exist = True
+                    break
+            if not channels_exist:
+                cmd_channels_ids = [message.channel.id]
+
+        if message.channel.id not in cmd_channels_ids and not has_permissions(message.author, ["administrator"]):
+            reply = discord.Embed(
+                title="⚠ Канал",
+                description="Пожалуйста, используйте команды в другом канале.",
+                color=discord.Color.gold()
+            )
+            reply.set_footer(text = f"{message.author}", icon_url=f"{message.author.avatar_url}")
+            await message.channel.send(embed=reply, delete_after=5)
+            return " _"
+        else:
+            return prefix
+    
     else:
-        return prefix
+        return " _"
 
 client = commands.Bot(command_prefix=get_prefix)
 client.remove_command("help")
@@ -51,7 +55,7 @@ token = str(os.environ.get("guild_manager_token"))
 default_avatar_url = "https://cdn.discordapp.com/attachments/664230839399481364/677534213418778660/default_image.png"
 
 #========Lists and values=========
-from functions import guild_limit, member_limit, owner_ids
+from functions import guild_limit, member_limit, owner_ids, is_command
 
 turned_on_at = datetime.datetime.utcnow()
 
