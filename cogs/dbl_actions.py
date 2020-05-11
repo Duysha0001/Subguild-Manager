@@ -166,9 +166,15 @@ class dbl_actions(commands.Cog):
                         await ctx.send(embed=reply)
                     
                     else:
+                        guild_name = None
+                        for sg in get_field(result, "subguilds", default=[]):
+                            if f"{ctx.author.id}" in sg["members"]:
+                                guild_name = sg["name"]
+                                break
+                        
                         reply = discord.Embed(
                             title="💛 Спасибо за воут!",
-                            description=f"Вашей гильдии добавлено {vote_reward} очков репутации, но это не последний раз! Приходите через 12 часов :)",
+                            description=f"Вашей гильдии ({guild_name}) добавлено {vote_reward} очко репутации, но это не последний раз! Приходите через 12 часов :)",
                             color=discord.Color.gold()
                         )
                         reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))

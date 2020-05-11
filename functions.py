@@ -190,6 +190,7 @@ class Guild:
         self.reputation = get_field(data, "reputation", default=0)
         self.mentions = get_field(data, "mentions", default=0)
         self.members = get_field(data, "members", default=[])
+        self.limit = get_field(data, "limit", default=member_limit)
 
     def member_xp(self, ID):
         if not f"{ID}" in self.members:

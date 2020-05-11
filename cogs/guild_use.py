@@ -133,7 +133,8 @@ class guild_use(commands.Cog):
             {"_id": ctx.guild.id},
             projection={
                 "subguilds.requests": False,
-                "subguilds.members": False
+                "subguilds.members": False,
+                "ignore_chats": False
             }
         )
         guild_name = await search_and_choose(get_field(result, "subguilds"), search, ctx.message, ctx.prefix, self.client)
@@ -176,20 +177,21 @@ class guild_use(commands.Cog):
                     "subguilds.name": guild_name
                 },
                 projection={
-                    "subguilds.requests": False
+                    "ignore_chats": False
                 }
             )
-            m_lim = get_field(result, "member_limit", default=member_limit)
+            server_lim = get_field(result, "member_limit", default=member_limit)
 
             subguild = get_subguild(result, guild_name)
             guild_role_id = subguild["role_id"]
             private = subguild["private"]
-            total_memb = len(subguild["members"])
+            total_places = len(subguild["members"]) + len(subguild["requests"])
+            m_lim = get_field(subguild, "limit", default=server_lim)
 
-            if total_memb >= m_lim:
+            if total_places >= m_lim:
                 reply = discord.Embed(
-                    title = "🛠 Гильдия переполнена",
-                    description = f"В этой гильдии достигнут максимум участников - {m_lim}",
+                    title = "🛠 Переполнение",
+                    description = f"В этой гилдьдии участников и заявок в сумме не может быть больше {m_lim}",
                     color = mmorpg_col("paper")
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
@@ -612,6 +614,8 @@ class guild_use(commands.Cog):
         collection = db["subguilds"]
 
         result = collection.find_one({"_id": ctx.guild.id})
+        server_lim = get_field(result, "member_limit", default=member_limit)
+
         if search is None:
             subguild = get_subguild(result, ctx.author.id)
             error_text = (
@@ -644,6 +648,7 @@ class guild_use(commands.Cog):
             pass
 
         else:
+            local_lim = get_field(subguild, "limit", default=server_lim)
             subguild = Guild(subguild)
 
             total_mes = subguild.xp()
@@ -664,7 +669,7 @@ class guild_use(commands.Cog):
             if subguild.helper_id != None:
                 helper = ctx.guild.get_member(subguild.helper_id)
                 reply.add_field(name = "🔰 Помощник", value = f"> {anf(helper)}", inline=False)
-            reply.add_field(name = "👥 Всего участников", value = f"> {total_memb}", inline=False)
+            reply.add_field(name = "👥 Всего участников", value = f"> {total_memb} из {local_lim}", inline=False)
             reply.add_field(name = "✨ Всего опыта", value = f"> {total_mes}", inline=False)
             reply.add_field(name = "🔅 Репутация", value = f"> {subguild.reputation}", inline=False)
             if subguild.mentions > 0:

@@ -12,39 +12,7 @@ cluster = MongoClient(app_string)
 db = cluster["guild_data"]
 
 #---------- Variables ------------
-from functions import guild_limit, default_avatar_url
-
-p = "."
-param_desc = {
-    "name": {
-        "usage": f'`{p}edit-guild name [Старое название] Новое название`',
-        "example": f'`{p}edit-guild name [Моя гильдия] Лучшая гильдия`'
-    },
-    "description": {
-        "usage": f'`{p}edit-guild description [Гильдия] Новое описание`',
-        "example": f'`{p}edit-guild description [Моя гильдия] Для тех, кто любит общаться`'
-    },
-    "avatar_url": {
-        "usage": f'`{p}edit-guild avatar [Гильдия] Ссылка`',
-        "example": f'`{p}edit-guild avatar [Моя гильдия] https://discordapp.com/.../image.png`'
-    },
-    "leader_id": {
-        "usage": f'`{p}edit-guild leader [Гильдия] @Пользователь`',
-        "example": f'`{p}edit-guild leader [Моя гильдия] @Пользователь`'
-    },
-    "helper_id": {
-        "usage": f'`{p}edit-guild helper [Гильдия] @Пользователь`',
-        "example": f'`{p}edit-guild helper [Моя гильдия] @Пользователь`'
-    },
-    "role_id": {
-        "usage": f'`{p}edit-guild role [Гильдия] @Роль (или delete)`',
-        "example": f'`{p}edit-guild role [Моя гильдия] delete`'
-    },
-    "private": {
-        "usage": f'`{p}edit-guild privacy [Гильдия] on / off`',
-        "example": f'`{p}edit-guild privacy [Моя гильдия] on`'
-    }
-}
+from functions import guild_limit, default_avatar_url, member_limit
 
 #---------- Functions ------------
 from functions import has_roles, has_permissions, get_field, detect, find_alias, carve_int, search_and_choose
@@ -436,7 +404,41 @@ class guild_control(commands.Cog):
     @commands.command(aliases = ["edit-guild", "editguild", "eg", "edit"])
     async def edit_guild(self, ctx, param, *, text_data = None):
         pr = ctx.prefix
-        collection = db["subguilds"]
+        param_desc = {
+            "name": {
+                "usage": f'`{pr}edit-guild name [Старое название] Новое название`',
+                "example": f'`{pr}edit-guild name [Моя гильдия] Лучшая гильдия`'
+            },
+            "description": {
+                "usage": f'`{pr}edit-guild description [Гильдия] Новое описание`',
+                "example": f'`{pr}edit-guild description [Моя гильдия] Для тех, кто любит общаться`'
+            },
+            "avatar_url": {
+                "usage": f'`{pr}edit-guild avatar [Гильдия] Ссылка`',
+                "example": f'`{pr}edit-guild avatar [Моя гильдия] https://discordapp.com/.../image.png`'
+            },
+            "leader_id": {
+                "usage": f'`{pr}edit-guild leader [Гильдия] @Пользователь`',
+                "example": f'`{pr}edit-guild leader [Моя гильдия] @Пользователь`'
+            },
+            "helper_id": {
+                "usage": f'`{pr}edit-guild helper [Гильдия] @Пользователь`',
+                "example": f'`{pr}edit-guild helper [Моя гильдия] @Пользователь`'
+            },
+            "role_id": {
+                "usage": f'`{pr}edit-guild role [Гильдия] @Роль (или delete)`',
+                "example": f'`{pr}edit-guild role [Моя гильдия] delete`'
+            },
+            "private": {
+                "usage": f'`{pr}edit-guild privacy [Гильдия] on / off`',
+                "example": f'`{pr}edit-guild privacy [Моя гильдия] on`'
+            },
+            "limit": {
+                "usage": f"`{pr}edit-guild limit [Гильдия] Число`",
+                "example": f"`{pr}edit-guild limit Короли 15`"
+            }
+        }
+
         parameters = {
             "name": ["название"],
             "description": ["описание"],
@@ -444,7 +446,8 @@ class guild_control(commands.Cog):
             "leader_id": ["глава", "owner"],
             "helper_id": ["помощник", "заместитель"],
             "role_id": ["роль"],
-            "private": ["приватность", "privacy"]
+            "private": ["приватность", "privacy"],
+            "limit": ["лимит", "максимум", "max"]
         }
         parameter = find_alias(parameters, param)
 
@@ -459,6 +462,7 @@ class guild_control(commands.Cog):
                     "> `helper`\n"
                     "> `role`\n"
                     "> `privacy`\n"
+                    "> `limit`\n"
                     f"**Подробнее:** `{pr}{ctx.command.name}`\n"
                     f'**Использование:** `{pr}{ctx.command.name} Параметр [Название гильдии] Новое значение`\n'
                     f'**Пример:** `{pr}{ctx.command.name} name [Моя гильдия] Хранители`\n'
@@ -479,16 +483,18 @@ class guild_control(commands.Cog):
                 await ctx.send(embed = reply)
             
             else:
+                collection = db["subguilds"]
                 search, text = sep_args(text_data)
 
                 result = collection.find_one(
-                    filter={"_id": ctx.guild.id},
+                    {"_id": ctx.guild.id},
                     projection={
                         "subguilds.members": False,
                         "subguilds.requests": False,
                         "subguilds.description": False
                     }
                 )
+                server_ml = get_field(result, "member_limit", default=member_limit)
                 guild_name = await search_and_choose(get_field(result, "subguilds"), search, ctx.message, ctx.prefix, self.client)
 
                 if result is None:
@@ -647,13 +653,34 @@ class guild_control(commands.Cog):
                                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                                 await ctx.send(embed = reply)
                         
+                        elif parameter == "limit":
+                            if not text.isdigit():
+                                correct_arg = False
+                                reply = discord.Embed(
+                                    title = "💢 Ошибка",
+                                    description = f"**{text}** должно быть целым числом",
+                                    color = mmorpg_col("vinous")
+                                )
+                                reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                                await ctx.send(embed = reply)
+                            elif int(text) > server_ml:
+                                correct_arg = False
+                                reply = discord.Embed(
+                                    title = "💢 Превышен лимит",
+                                    description = f"На этом сервере не разрешены гильдии с численностью больше, чем {server_ml} участников.",
+                                    color = mmorpg_col("vinous")
+                                )
+                                reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                                await ctx.send(embed = reply)
+                            else:
+                                value = int(text)
+                        
                         if correct_arg:
                             subguild[parameter] = value
 
                             collection.find_one_and_update(
                                 {"_id": ctx.guild.id, "subguilds.name": guild_name},
-                                {"$set": {f"subguilds.$.{parameter}": value}},
-                                upsert=True
+                                {"$set": {f"subguilds.$.{parameter}": value}}
                             )
 
                             reply = discord.Embed(
@@ -1355,6 +1382,7 @@ class guild_control(commands.Cog):
                     "> `helper`\n"
                     "> `role`\n"
                     "> `privacy`\n"
+                    "> `limit`\n"
                     f'**Использование:** `{p}{cmd} Параметр [Название гильдии] Новое значение`\n'
                     f'**Пример:** `{p}{cmd} name [Цари Горы] Хранители`\n'
                     f'**Подробнее о параметрах:**\n'

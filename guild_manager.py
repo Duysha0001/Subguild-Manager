@@ -210,7 +210,7 @@ async def on_member_remove(member):
 async def on_guild_join(guild):
     p = default_prefix
     greet = discord.Embed(
-        title="🎁 Спасибо за то, что выбрали Subguild Manager!",
+        title=f"🎁 Спасибо за то, что выбрали **{client.user.name}**!",
         description=(
             f"Категории команд можно увидеть, написав `{p}help`\n"
             f"Рекомендую начать с категории `{p}help settings`\n"
@@ -635,7 +635,7 @@ client.loop.create_task(change_status(f"{default_prefix}help", "online"))
 #--------- Loading Cogs ---------
 
 for file_name in os.listdir("./cogs"):
-    if file_name.endswith(".py"):  # TEMPORARY PARTIAL LOAD
+    if file_name.endswith(".py"): # and not file_name.startswith("dbl"):  # TEMPORARY PARTIAL LOAD
         client.load_extension(f"cogs.{file_name[:-3]}")
 
 client.run(token)
