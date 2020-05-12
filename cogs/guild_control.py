@@ -453,19 +453,20 @@ class guild_control(commands.Cog):
 
         if parameter is None:
             reply = discord.Embed(
-                title = "❓ Доступные параметры настроек",
+                title = f"❓ Не найден параметр `{param}`",
                 description = (
-                    "> `name`\n"
-                    "> `description`\n"
-                    "> `avatar`\n"
-                    "> `leader`\n"
-                    "> `helper`\n"
-                    "> `role`\n"
-                    "> `privacy`\n"
-                    "> `limit`\n"
-                    f"**Подробнее:** `{pr}{ctx.command.name}`\n"
-                    f'**Использование:** `{pr}{ctx.command.name} Параметр [Название гильдии] Новое значение`\n'
-                    f'**Пример:** `{pr}{ctx.command.name} name [Моя гильдия] Хранители`\n'
+                    "Попробуйте с одним из этих:\n"
+                    f"> `{pr}edit-guild name`\n"
+                    f"> `{pr}edit-guild description`\n"
+                    f"> `{pr}edit-guild avatar`\n"
+                    f"> `{pr}edit-guild leader`\n"
+                    f"> `{pr}edit-guild helper`\n"
+                    f"> `{pr}edit-guild role`\n"
+                    f"> `{pr}edit-guild privacy`\n"
+                    f"> `{pr}edit-guild limit`\n"
+                    f"**Подробнее:** `{pr}edit-guild`\n"
+                    f'**Использование:** `{pr}edit-guild Параметр [Название гильдии] Новое значение`\n'
+                    f'**Пример:** `{pr}edit-guild name [Моя гильдия] Хранители`\n'
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -473,7 +474,7 @@ class guild_control(commands.Cog):
         else:
             if text_data is None:
                 reply = discord.Embed(
-                    title = f"🛠 Использование {pr}edit-guild {param}",
+                    title = f"🛠 Подробнее о {pr}edit-guild {param}",
                     description = (
                         f"**Использование:** {param_desc[parameter]['usage']}\n"
                         f"**Пример:** {param_desc[parameter]['example']}"
@@ -491,13 +492,14 @@ class guild_control(commands.Cog):
                     projection={
                         "subguilds.members": False,
                         "subguilds.requests": False,
-                        "subguilds.description": False
+                        "subguilds.description": False,
+                        "ignore_chats": False
                     }
                 )
                 server_ml = get_field(result, "member_limit", default=member_limit)
                 guild_name = await search_and_choose(get_field(result, "subguilds"), search, ctx.message, ctx.prefix, self.client)
 
-                if result is None:
+                if guild_name is None:
                     reply = discord.Embed(
                         title = "💢 Ошибка",
                         description = f"По запросу **{search}** не было найдено гильдий",
@@ -505,7 +507,7 @@ class guild_control(commands.Cog):
                     )
                     await ctx.send(embed = reply)
                 
-                elif result == 1337:
+                elif guild_name == 1337:
                     pass
 
                 else:

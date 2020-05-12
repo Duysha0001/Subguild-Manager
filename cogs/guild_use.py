@@ -188,7 +188,23 @@ class guild_use(commands.Cog):
             total_places = len(subguild["members"]) + len(subguild["requests"])
             m_lim = get_field(subguild, "limit", default=server_lim)
 
-            if total_places >= m_lim:
+            user_guild = None
+            for sg in get_field(result, "subguilds", default=[]):
+                if f"{ctx.author.id}" in sg["members"]:
+                    user_guild = sg["name"]
+                    break
+            del result
+
+            if guild_name == user_guild:
+                reply = discord.Embed(
+                    title = "❌ Ошибка",
+                    description = f"Вы уже являетесь членом гильдии **{guild_name}**",
+                    color = mmorpg_col("vinous")
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
+            
+            elif total_places >= m_lim:
                 reply = discord.Embed(
                     title = "🛠 Переполнение",
                     description = f"В этой гилдьдии участников и заявок в сумме не может быть больше {m_lim}",
@@ -197,95 +213,77 @@ class guild_use(commands.Cog):
                 reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
 
-            else:
-                result = result["subguilds"]
-                user_guild = None
-                for sg in result:
-                    if f"{ctx.author.id}" in sg["members"]:
-                        user_guild = sg["name"]
-                        break
-                del result
+            elif user_guild != None:
+                reply = discord.Embed(
+                    title = "🛠 О смене гильдий",
+                    description = (
+                        f"В данный момент Вы состоите в гильдии **{user_guild}**.\n"
+                        f"Вам нужно выйти из неё, чтобы зайти в другую, однако, **не забывайте**:\n"
+                        f"**->** Ваш счётчик опыта обнуляется при выходе.\n"
+                        f"Команда для выхода: `{pr}leave-guild`"
+                    )
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
 
-                if guild_name == user_guild:
+            else:
+                if private and ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]):
+                    collection.find_one_and_update(
+                        {"_id": ctx.guild.id, "subguilds.name": guild_name},
+                        {"$addToSet": {"subguilds.$.requests": ctx.author.id}},
+                        upsert=True
+                    )
                     reply = discord.Embed(
-                        title = "❌ Ошибка",
-                        description = f"Вы уже являетесь членом гильдии **{guild_name}**",
-                        color = mmorpg_col("vinous")
+                        title = "⏳ Ваш запрос отправлен главе",
+                        description = (
+                            f"Это закрытая гильдия. Вы станете её участником, как только её глава примет Вашу заявку"
+                        ),
+                        color = mmorpg_col("paper")
                     )
                     reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                     await ctx.send(embed = reply)
-                
-                elif user_guild != None:
-                    reply = discord.Embed(
-                        title = "🛠 О смене гильдий",
+
+                    log = discord.Embed(
                         description = (
-                            f"В данный момент Вы состоите в гильдии **{user_guild}**.\n"
-                            f"Вам нужно выйти из неё, чтобы зайти в другую, однако, **не забывайте**:\n"
-                            f"**->** Ваш счётчик опыта обнуляется при выходе.\n"
-                            f"Команда для выхода: `{pr}leave-guild`"
+                            "Запрос на вступление\n"
+                            f"**В гильдию:** {guild_name}\n"
+                            f"**С сервера:** {ctx.guild.name}\n"
+                            f"**Все запросы:** `{pr}requests Страница {guild_name}`\n"
+                            f"**Важно:** используйте команды на соответствующем сервере"
                         )
                     )
-                    reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                    await ctx.send(embed = reply)
+                    log.set_author(name = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                    if subguild["leader_id"] != None:
+                        leader = ctx.guild.get_member(subguild["leader_id"])
+                        self.client.loop.create_task(knock_dm(leader, ctx.channel, log))
+                    if subguild["helper_id"] != None:
+                        helper = ctx.guild.get_member(subguild["helper_id"])
+                        self.client.loop.create_task(knock_dm(helper, ctx.channel, log))
 
                 else:
-                    if private and ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]):
-                        collection.find_one_and_update(
-                            {"_id": ctx.guild.id, "subguilds.name": guild_name},
-                            {"$addToSet": {"subguilds.$.requests": ctx.author.id}},
-                            upsert=True
-                        )
-                        reply = discord.Embed(
-                            title = "⏳ Ваш запрос отправлен главе",
-                            description = (
-                                f"Это закрытая гильдия. Вы станете её участником, как только её глава примет Вашу заявку"
-                            ),
-                            color = mmorpg_col("paper")
-                        )
-                        reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                        await ctx.send(embed = reply)
+                    collection.find_one_and_update(
+                        {"_id": ctx.guild.id, "subguilds.name": guild_name},
+                        {
+                            "$set": {f"subguilds.$.members.{ctx.author.id}": {"messages": 0}}
+                        }
+                    )
+                    collection.find_one_and_update(
+                        {"_id": ctx.guild.id},
+                        {"$pull": {"subguilds.$[].requests": {"$in": [ctx.author.id]}}}
+                    )
 
-                        log = discord.Embed(
-                            description = (
-                                "Запрос на вступление\n"
-                                f"**В гильдию:** {guild_name}\n"
-                                f"**С сервера:** {ctx.guild.name}\n"
-                                f"**Все запросы:** `{pr}requests Страница {guild_name}`\n"
-                                f"**Важно:** используйте команды на соответствующем сервере"
-                            )
-                        )
-                        log.set_author(name = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                        if subguild["leader_id"] != None:
-                            leader = ctx.guild.get_member(subguild["leader_id"])
-                            self.client.loop.create_task(knock_dm(leader, ctx.channel, log))
-                        if subguild["helper_id"] != None:
-                            helper = ctx.guild.get_member(subguild["helper_id"])
-                            self.client.loop.create_task(knock_dm(helper, ctx.channel, log))
+                    reply = discord.Embed(
+                        title = "✅ Добро пожаловать",
+                        description = (
+                            f"Вы вступили в гильдию **{guild_name}**\n"
+                            f"-> Профиль гильдии: `{pr}guild-info {guild_name}`"
+                        ),
+                        color = mmorpg_col("clover")
+                    )
+                    reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                    await ctx.send(embed = reply)
 
-                    else:
-                        collection.find_one_and_update(
-                            {"_id": ctx.guild.id, "subguilds.name": guild_name},
-                            {
-                                "$set": {f"subguilds.$.members.{ctx.author.id}": {"messages": 0}}
-                            }
-                        )
-                        collection.find_one_and_update(
-                            {"_id": ctx.guild.id},
-                            {"$pull": {"subguilds.$[].requests": {"$in": [ctx.author.id]}}}
-                        )
-
-                        await give_join_role(ctx.author, guild_role_id)
-
-                        reply = discord.Embed(
-                            title = "✅ Добро пожаловать",
-                            description = (
-                                f"Вы вступили в гильдию **{guild_name}**\n"
-                                f"-> Профиль гильдии: `{pr}guild-info {guild_name}`"
-                            ),
-                            color = mmorpg_col("clover")
-                        )
-                        reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                        await ctx.send(embed = reply)
+                    await give_join_role(ctx.author, guild_role_id)
 
     @commands.cooldown(1, 20, commands.BucketType.member)
     @commands.command(aliases = ["leave-guild", "leaveguild", "lg", "leave"])
