@@ -402,7 +402,7 @@ class setting_system(commands.Cog):
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
-        elif not lim.isdigit() or "-" in lim:
+        elif not lim.isdigit():
             reply = discord.Embed(
                 title = "💢 Неверный аргумент",
                 description = f"Аргумент {lim} должен быть целым положительным числом",
@@ -410,7 +410,7 @@ class setting_system(commands.Cog):
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
-        elif int(lim) > member_limit or int(lim) < 1:
+        elif int(lim) > member_limit:
             reply = discord.Embed(
                 title = "❌ Ошибка",
                 description = f"Лимит пользователей не может превышать **{member_limit}** на гильдию",

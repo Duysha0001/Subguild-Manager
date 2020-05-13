@@ -206,8 +206,8 @@ class guild_use(commands.Cog):
             
             elif total_places >= m_lim:
                 reply = discord.Embed(
-                    title = "🛠 Переполнение",
-                    description = f"В этой гилдьдии участников и заявок в сумме не может быть больше {m_lim}",
+                    title = "🛠 Переполнение заявок / участников",
+                    description = f"В этой гильдии участников и заявок в сумме не может быть больше {m_lim}",
                     color = mmorpg_col("paper")
                 )
                 reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
