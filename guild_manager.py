@@ -428,7 +428,7 @@ async def download(ctx, *, guild_name):
             leader = ctx.guild.get_member(g.leader_id)
         helper = None
         if g.helper_id is not None:
-            leader = ctx.guild.get_member(g.helper_id)
+            helper = ctx.guild.get_member(g.helper_id)
         
         table = [
             ["Репутация", f"{g.reputation}", "", "Глава", f"{leader}", "", "Участник"],
