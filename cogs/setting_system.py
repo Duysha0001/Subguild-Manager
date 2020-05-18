@@ -120,13 +120,13 @@ class setting_system(commands.Cog):
             ),
             color = mmorpg_col("lilac")
         )
-        reply.add_field(name="**Канал логов**", value=f"{lc_desc}")
         reply.add_field(name="**Каналы для команд бота**", value=f"{chan_desc}")
         reply.add_field(name="**Каналы игнорирования опыта**", value=f"{ig_desc}")
+        reply.add_field(name="**Канал логов**", value=f"{lc_desc}", inline=False)
         reply.add_field(name="**Роли мастера гильдий:**", value=f"{mr_desc}")
         reply.add_field(name="**Роли для создания гильдий**", value=f"{cr_desc}")
-        reply.add_field(name="**Вести подсчёт упоминаний от**", value=f"{ping_desc}")
-        reply.add_field(name="**Лимит пользователей на гильдию**", value=f"{lim_desc}")
+        reply.add_field(name="**Вести подсчёт упоминаний от**", value=f"{ping_desc}", inline=False)
+        reply.add_field(name="**Лимит пользователей на гильдию**", value=f"> {lim_desc}")
         reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = reply)
 
