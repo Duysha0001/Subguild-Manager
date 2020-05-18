@@ -49,7 +49,6 @@ class setting_system(commands.Cog):
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases=["set", "how-set", "config"])
     async def settings(self, ctx):
-        pr = ctx.prefix
         collection = db["cmd_channels"]
         result = collection.find_one({"_id": ctx.guild.id})
         wl_channels = get_field(result, "channels")
@@ -70,16 +69,16 @@ class setting_system(commands.Cog):
             projection={
                 "mentioner_id": True,
                 "member_limit": True,
-                "master_role_id": True,
+                "master_roles": True,
                 "ignore_chats": True,
                 "log_channel": True,
-                "creator_role": True
+                "creator_roles": True
             }
         )
         log_channel_id = get_field(result, "log_channel")
         pinger_id = get_field(result, "mentioner_id")
-        mr_id = get_field(result, "master_role_id")
-        cr_id = get_field(result, "creator_role")
+        mr_ids = get_field(result, "master_roles", default=[])
+        cr_ids = get_field(result, "creator_roles", default=[])
         lim_desc = get_field(result, "member_limit", default=member_limit)
         igch = get_field(result, "ignore_chats")
 
@@ -96,42 +95,38 @@ class setting_system(commands.Cog):
             lc_desc = f"> <#{log_channel_id}>"
         
         if pinger_id is None:
-            ping_desc = "выключено"
+            ping_desc = "> выключено"
         else:
-            ping_desc = f"{ctx.guild.get_member(pinger_id)}"
+            ping_desc = f"> {ctx.guild.get_member(pinger_id)}"
         
-        if mr_id is None:
-            mr_desc = "Отсутствует"
+        if mr_ids == []:
+            mr_desc = "> Отсутствуют"
         else:
-            mr_desc = f"<@&{mr_id}>"
+            mr_desc = ""
+            for ID in mr_ids:
+                mr_desc += f"> <@&{ID}>\n"
         
-        if cr_id is None:
-            cr_desc = "Отсутствует"
+        if cr_ids == []:
+            cr_desc = "> Отсутствуют"
         else:
-            cr_desc = f"<@&{cr_id}>"
+            cr_desc = ""
+            for ID in cr_ids:
+                cr_desc += f"> <@&{ID}>\n"
         
         reply = discord.Embed(
             title = "⚙ Текущие настройки сервера",
             description = (
-                f"**Префикс:** `{c_prefix}`\n\n"
-                f"**Каналы для команд бота:**\n"
-                f"{chan_desc}\n"
-                f"**Каналы игнорирования опыта:**\n"
-                f"{ig_desc}\n"
-                f"**Канал логов:**\n"
-                f"{lc_desc}\n\n"
-                f"**Роль мастера гильдий:**\n"
-                f"> {mr_desc}\n\n"
-                f"**Роль для создания гильдий:**\n"
-                f"> {cr_desc}\n\n"
-                f"**Вести подсчёт упоминаний от:**\n"
-                f"> {ping_desc}\n\n"
-                f"**Лимит пользователей на гильдию:**\n"
-                f"> {lim_desc}\n\n"
-                f"-> Список настроек: `{pr}help settings`"
+                f"**Префикс:** `{c_prefix}`"
             ),
             color = mmorpg_col("lilac")
         )
+        reply.add_field(name="**Канал логов**", value=f"{lc_desc}")
+        reply.add_field(name="**Каналы для команд бота**", value=f"{chan_desc}")
+        reply.add_field(name="**Каналы игнорирования опыта**", value=f"{ig_desc}")
+        reply.add_field(name="**Роли мастера гильдий:**", value=f"{mr_desc}")
+        reply.add_field(name="**Роли для создания гильдий**", value=f"{cr_desc}")
+        reply.add_field(name="**Вести подсчёт упоминаний от**", value=f"{ping_desc}")
+        reply.add_field(name="**Лимит пользователей на гильдию**", value=f"{lim_desc}")
         reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = reply)
 
@@ -503,117 +498,328 @@ class setting_system(commands.Cog):
                     await ctx.send(embed=reply)
                     await sys_msg.delete()
 
-    @commands.cooldown(1, 10, commands.BucketType.member)
-    @commands.command(aliases = ["master-role", "masterrole", "mr"])
-    async def master_role(self, ctx, *, r_search):
+    @commands.cooldown(1, 5, commands.BucketType.member)
+    @commands.command(name="master-role", aliases = ["master-roles", "masterrole", "mr"])
+    async def master_role(self, ctx, option, *, role_s=None):
+        mr_lim = 5
+        p, cmd = ctx.prefix, ctx.command.name
+
         if not has_permissions(ctx.author, ["administrator"]):
             reply = discord.Embed(
-                title = "❌ Недостаточно прав",
+                title = "💢 Недостаточно прав",
                 description = (
                     "Требуемые права:\n"
                     "> Администратор"
                 ),
                 color = mmorpg_col("vinous")
             )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
+            reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+            await ctx.send(embed=reply)
 
         else:
-            correct_arg = True
-            role = discord.utils.get(ctx.guild.roles, name = r_search)
-            if role is None:
-                role = detect.role(ctx.guild, r_search)
-            
-            if r_search.lower() == "delete":
-                value = None
-
-            elif role is None:
-                correct_arg = False
+            parameters = {
+                "add": ["append", "set"],
+                "delete": ["remove"]
+            }
+            parameter = find_alias(parameters, option)
+            if parameter is None:
                 reply = discord.Embed(
-                    title = "💢 Неверный аргумент",
-                    description = f"Вы ввели {r_search}, подразумевая роль, но она не была найдена",
+                    title = f"💢 Неизвестный параметр `{option}`",
+                    description = (
+                        "Попробуйте одну из этих команд:\n"
+                        f"> `{p}{cmd} add`\n"
+                        f"> `{p}{cmd} delete`"
+                    ),
                     color = mmorpg_col("vinous")
                 )
-                reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-                await ctx.send(embed = reply)
+                reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                await ctx.send(embed=reply)
+
+            elif role_s is None:
+                help_texts = {
+                    "add": {
+                        "desc": "Добавляет мастер-роль",
+                        "usage": f"`{p}{cmd} add @Роль`"
+                    },
+                    "delete": {
+                        "desc": "Удаляет мастер-роли",
+                        "usage": (
+                            f"удаление одной мастер-роли: `{p}{cmd} delete @Роль`\n"
+                            f"Удаление всех мастер-ролей: `{p}{cmd} delete all`"
+                        )
+                    }
+                }
+                help_text = help_texts[parameter]
+                reply = discord.Embed(
+                    title=f"❔ Как использовать `{p}{cmd} {parameter}`",
+                    description=f"**Описание:** {help_text['desc']}\n**Использование:** {help_text['usage']}"
+                )
+                reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                await ctx.send(embed=reply)
 
             else:
-                value = role.id
-            
-            if correct_arg:
                 collection = db["subguilds"]
-                collection.find_one_and_update(
+                result = collection.find_one(
                     {"_id": ctx.guild.id},
-                    {"$set": {"master_role_id": value}},
-                    upsert=True
+                    projection={"master_roles": True}
                 )
+                master_roles = get_field(result, "master_roles", default=[])
+                del result
 
-                desc = "Роль мастера гильдий удалена"
-                if value != None:
-                    desc = f"Роль мастера гильдий: <@&{value}>"
-                reply = discord.Embed(
-                    title = "✅ Настроено",
-                    description = desc,
-                    color = mmorpg_col("clover")
-                )
-                await ctx.send(embed = reply)
+                if role_s.lower() != "all":
+                    role = detect.role(ctx.guild, role_s)
+                if parameter == "add":
+                    if role is None:
+                        reply = discord.Embed(
+                            title = "💢 Роль не распознана",
+                            description = f"Вы ввели **{role_s}**, подразумевая роль, но она не была найдена",
+                            color = mmorpg_col("vinous")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
 
-    @commands.cooldown(1, 10, commands.BucketType.member)
+                    elif role.id in master_roles:
+                        reply = discord.Embed(
+                            title = "💢 Уже мастер-роль",
+                            description = f"<@&{role.id}> уже является мастер-ролью.\nСписок Ваших настроек: `{p}settings`",
+                            color = mmorpg_col("vinous")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+                    elif len(master_roles) >= mr_lim:
+                        reply = discord.Embed(
+                            title = "💢 Лимит",
+                            description = (
+                                f"Мастер-ролей на сервере не может быть больше {mr_lim}\n"
+                                f"Ваши текущие настройки: `{p}settings`"
+                            ),
+                            color = mmorpg_col("vinous")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+                    else:
+                        collection.find_one_and_update(
+                            {"_id": ctx.guild.id},
+                            {"$addToSet": {"master_roles": role.id}},
+                            upsert=True
+                        )
+                        reply = discord.Embed(
+                            title = "♻ Выполнено",
+                            description = f"Теперь <@&{role.id}> является мастер-ролью\nСписок настроек: `{p}settings`",
+                            color = mmorpg_col("clover")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+                else:
+                    if role_s.lower() == "all":
+                        collection.find_one_and_update(
+                            {"_id": ctx.guild.id},
+                            {"$unset": {"master_roles": ""}}
+                        )
+                        reply = discord.Embed(
+                            title = "♻ Выполнено",
+                            description = f"Все мастер-роли удалены.\nСписок настроек: `{p}settings`",
+                            color = mmorpg_col("clover")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+                    elif role is None:
+                        reply = discord.Embed(
+                            title = "💢 Роль не распознана",
+                            description = f"Вы ввели **{role_s}**, подразумевая роль, но она не была найдена",
+                            color = mmorpg_col("vinous")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+                    elif role.id not in master_roles:
+                        reply = discord.Embed(
+                            title = "💢 Не мастер-роль",
+                            description = f"<@&{role.id}> не является мастер-ролью.\nСписок Ваших настроек: `{p}settings`",
+                            color = mmorpg_col("vinous")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+                    else:
+                        collection.find_one_and_update(
+                            {"_id": ctx.guild.id},
+                            {"$pull": {"master_roles": {"$in": [role.id]}}},
+                            upsert=True
+                        )
+                        reply = discord.Embed(
+                            title = "♻ Выполнено",
+                            description = f"Теперь <@&{role.id}> больше не является мастер-ролью\nСписок настроек: `{p}settings`",
+                            color = mmorpg_col("clover")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+    @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["creator-role"])
-    async def creator(self, ctx, *, r_search):
-        pr = ctx.prefix
+    async def creator(self, ctx, option, *, role_s=None):
+        cr_lim = 5
+        p, cmd = ctx.prefix, ctx.command.name
+
         if not has_permissions(ctx.author, ["administrator"]):
             reply = discord.Embed(
-                title = "❌ Недостаточно прав",
+                title = "💢 Недостаточно прав",
                 description = (
                     "Требуемые права:\n"
                     "> Администратор"
                 ),
                 color = mmorpg_col("vinous")
             )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
+            reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+            await ctx.send(embed=reply)
 
         else:
-            correct_arg = True
-            role = discord.utils.get(ctx.guild.roles, name = r_search)
-            if role is None:
-                role = detect.role(ctx.guild, r_search)
-            
-            if r_search.lower() == "delete":
-                value = None
-
-            elif role is None:
-                correct_arg = False
+            parameters = {
+                "add": ["append", "set"],
+                "delete": ["remove"]
+            }
+            parameter = find_alias(parameters, option)
+            if parameter is None:
                 reply = discord.Embed(
-                    title = "💢 Неверный аргумент",
-                    description = f"Вы ввели {r_search}, подразумевая роль, но она не была найдена",
+                    title = f"💢 Неизвестный параметр `{option}`",
+                    description = (
+                        "Попробуйте одну из этих команд:\n"
+                        f"> `{p}{cmd} add`\n"
+                        f"> `{p}{cmd} delete`"
+                    ),
                     color = mmorpg_col("vinous")
                 )
-                reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-                await ctx.send(embed = reply)
+                reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                await ctx.send(embed=reply)
+
+            elif role_s is None:
+                help_texts = {
+                    "add": {
+                        "desc": "Добавляет роль для создания гильдий",
+                        "usage": f"`{p}{cmd} add @Роль`"
+                    },
+                    "delete": {
+                        "desc": "Удаляет роли для создания гильдий",
+                        "usage": (
+                            f"удаление одной: `{p}{cmd} delete @Роль`\n"
+                            f"Удаление всех: `{p}{cmd} delete all`"
+                        )
+                    }
+                }
+                help_text = help_texts[parameter]
+                reply = discord.Embed(
+                    title=f"❔ Как использовать `{p}{cmd} {parameter}`",
+                    description=f"**Описание:** {help_text['desc']}\n**Использование:** {help_text['usage']}"
+                )
+                reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                await ctx.send(embed=reply)
 
             else:
-                value = role.id
-            
-            if correct_arg:
                 collection = db["subguilds"]
-                collection.find_one_and_update(
+                result = collection.find_one(
                     {"_id": ctx.guild.id},
-                    {"$set": {"creator_role": value}},
-                    upsert=True
+                    projection={"creator_roles": True}
                 )
+                creator_roles = get_field(result, "creator_roles", default=[])
+                del result
 
-                desc = "Больше нет роли для создания гильдий"
-                if value != None:
-                    desc = f"Роль создателей гильдий: <@&{value}>\nТеперь все её обладатели могут создавать свои гильдии"
-                reply = discord.Embed(
-                    title = "✅ Настроено",
-                    description = f"{desc}\nТекущие настройки: `{pr}settings`",
-                    color = mmorpg_col("clover")
-                )
-                await ctx.send(embed = reply)
+                if role_s.lower() != "all":
+                    role = detect.role(ctx.guild, role_s)
+                if parameter == "add":
+                    if role is None:
+                        reply = discord.Embed(
+                            title = "💢 Роль не распознана",
+                            description = f"Вы ввели **{role_s}**, подразумевая роль, но она не была найдена",
+                            color = mmorpg_col("vinous")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
 
+                    elif role.id in creator_roles:
+                        reply = discord.Embed(
+                            title = "💢 Уже роль для создания гильдий",
+                            description = f"<@&{role.id}> уже является ролью для создания гильдий.\nСписок Ваших настроек: `{p}settings`",
+                            color = mmorpg_col("vinous")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+                    elif len(creator_roles) >= cr_lim:
+                        reply = discord.Embed(
+                            title = "💢 Лимит",
+                            description = (
+                                f"Ролей для создания гильдий на сервере не может быть больше {cr_lim}\n"
+                                f"Ваши текущие настройки: `{p}settings`"
+                            ),
+                            color = mmorpg_col("vinous")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+                    else:
+                        collection.find_one_and_update(
+                            {"_id": ctx.guild.id},
+                            {"$addToSet": {"creator_roles": role.id}},
+                            upsert=True
+                        )
+                        reply = discord.Embed(
+                            title = "♻ Выполнено",
+                            description = f"Теперь <@&{role.id}> является ролю для создания гильдий\nСписок настроек: `{p}settings`",
+                            color = mmorpg_col("clover")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+                else:
+                    if role_s.lower() == "all":
+                        collection.find_one_and_update(
+                            {"_id": ctx.guild.id},
+                            {"$unset": {"creator_roles": ""}}
+                        )
+                        reply = discord.Embed(
+                            title = "♻ Выполнено",
+                            description = f"Все роли для создания гильдий удалены.\nСписок настроек: `{p}settings`",
+                            color = mmorpg_col("clover")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+                    elif role is None:
+                        reply = discord.Embed(
+                            title = "💢 Роль не распознана",
+                            description = f"Вы ввели **{role_s}**, подразумевая роль, но она не была найдена",
+                            color = mmorpg_col("vinous")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+                    elif role.id not in creator_roles:
+                        reply = discord.Embed(
+                            title = "💢 Не роль для создания гильдий",
+                            description = f"<@&{role.id}> не является ролью для создания гильдий.\nСписок Ваших настроек: `{p}settings`",
+                            color = mmorpg_col("vinous")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+
+                    else:
+                        collection.find_one_and_update(
+                            {"_id": ctx.guild.id},
+                            {"$pull": {"creator_roles": {"$in": [role.id]}}},
+                            upsert=True
+                        )
+                        reply = discord.Embed(
+                            title = "♻ Выполнено",
+                            description = f"<@&{role.id}> больше не является ролью для создания гильдий\nСписок настроек: `{p}settings`",
+                            color = mmorpg_col("clover")
+                        )
+                        reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                        await ctx.send(embed=reply)
+    
     @commands.cooldown(1, 10, commands.BucketType.member)
     @commands.command(aliases = ["ping-count", "pingcount", "pc"])
     async def ping_count(self, ctx, u_search):
@@ -889,9 +1095,10 @@ class setting_system(commands.Cog):
             reply = discord.Embed(
                 title = f"❓ Об аргументах `{p}{cmd}`",
                 description = (
-                    "**Описание:** настраивает роль, дающую её обладателям права на создание и редактирование гильдий, а также на кики из гильдий и начисление репутации.\n"
-                    f'**Использование:** `{p}{cmd} @Роль`\n'
-                    f"**Сброс:** `{p}{cmd} delete`"
+                    "**Описание:** настраивает роли, дающие её обладателям права на создание и редактирование любых гильдий, а также на кики из гильдий и начисление репутации.\n"
+                    f"**Добавить мастер-роль:** `{p}{cmd} add @Роль`\n"
+                    f"**Сбросить мастер-роль:** `{p}{cmd} delete @Роль`\n"
+                    f"**Сбросить все:** `{p}{cmd} delete all`\n"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -905,10 +1112,11 @@ class setting_system(commands.Cog):
             reply = discord.Embed(
                 title = f"❓ Об аргументах `{p}{cmd}`",
                 description = (
-                    "**Описание:** настраивает роль, дающую её обладателям права на создание гильдий.\n"
-                    f'**Использование:** `{p}{cmd} @Роль`\n'
-                    f"**Сброс:** `{p}{cmd} delete`\n"
-                    f"**Разрешить всем:** `{p}{cmd} @everyone`"
+                    "**Описание:** настраивает роли, дающие её обладателям права на создание гильдий.\n"
+                    f"**Добавить:** `{p}{cmd} add @Роль`\n"
+                    f"**Сбросить одну:** `{p}{cmd} delete @Роль`\n"
+                    f"**Сбросить все:** `{p}{cmd} delete all`\n"
+                    f"**Разрешить всем:** `{p}{cmd} add @everyone`"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")

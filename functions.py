@@ -52,14 +52,32 @@ def find_alias(dict_of_aliases, search):
             break
     return out
 
+def has_any_roles(member, role_array):
+    if not has_permissions(member, ["administrator"]):
+        owned_role_ids = [r.id for r in member.roles]
+        has = False
+        for role in role_array:
+            if "int" in f"{type(role)}".lower():
+                role_id = role
+            else:
+                role_id = role.id
+            if role_id in owned_role_ids:
+                has = True
+                break
+        return has
+    else:
+        return True
 
 def has_roles(member, role_array):
     has_them = True
     if not has_permissions(member, ["administrator"]):
+        owned_role_ids = [r.id for r in member.roles]
         for role in role_array:
             if "int" in f"{type(role)}".lower():
-                role = member.guild.get_role(role)
-            if not role in member.roles:
+                role_id = role
+            else:
+                role_id = role.id
+            if role_id not in owned_role_ids:
                 has_them = False
                 break
     return has_them

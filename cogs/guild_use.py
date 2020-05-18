@@ -834,7 +834,7 @@ class guild_use(commands.Cog):
         result = collection.find_one(
             {"_id": ctx.guild.id},
             projection={
-                "master_role_id": True,
+                "master_roles": True,
                 "subguilds.name": True,
                 "subguilds.members": True,
                 "subguilds.leader_id": True,

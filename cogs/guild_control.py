@@ -15,7 +15,7 @@ db = cluster["guild_data"]
 from functions import guild_limit, default_avatar_url, member_limit
 
 #---------- Functions ------------
-from functions import has_roles, has_permissions, get_field, detect, find_alias, carve_int, search_and_choose
+from functions import has_any_roles, has_permissions, get_field, detect, find_alias, carve_int, search_and_choose
 
 # Other
 def anf(user):
@@ -203,7 +203,7 @@ class guild_control(commands.Cog):
                 result = collection.find_one(
                     query,
                     projection={
-                        "master_role_id": True,
+                        "master_roles": True,
                         "log_channel": True
                     }
                 )
@@ -214,7 +214,7 @@ class guild_control(commands.Cog):
                     {"_id": ctx.guild.id},
                     projection={
                         "subguilds.name": True,
-                        "master_role_id": True,
+                        "master_roles": True,
                         "log_channel": True
                     }
                 )
@@ -242,10 +242,10 @@ class guild_control(commands.Cog):
             # ----------
             
             if guild_name is not None:
-                lc_id = result.get("log_channel")
-                mr_id = result.get("master_role_id")
+                lc_id = get_field(result, "log_channel")
+                mr_ids = get_field(result, "master_roles", default=[])
                 
-                if not has_roles(ctx.author, [mr_id]) and not has_permissions(ctx.author, ["administrator"]):
+                if not has_any_roles(ctx.author, mr_ids):
                     reply = discord.Embed(
                         title = "❌ Недостаточно прав",
                         description = (
@@ -304,16 +304,17 @@ class guild_control(commands.Cog):
             projection={
                 "_id": True,
                 "subguilds.name": True,
-                "master_role_id": True,
-                "creator_role": True,
+                "master_roles": True,
+                "creator_roles": True,
                 "log_channel": True
             }
         )
         lc_id = get_field(result, "log_channel")
-        mr_id = get_field(result, "master_role_id")
-        cr_id = get_field(result, "creator_role")
+        req_roles = get_field(result, "master_roles", default=[])
+        cr_ids = get_field(result, "creator_roles", default=[])
+        req_roles.extend(cr_ids)
 
-        if not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]) and not has_roles(ctx.author, [cr_id]):
+        if not has_any_roles(ctx.author, req_roles):
             reply = discord.Embed(
                 title = "💢 Недостаточно прав",
                 description = (
@@ -513,9 +514,9 @@ class guild_control(commands.Cog):
                 else:
                     subguild = get_subguild(result, guild_name)
                     leader_id = get_field(subguild, "leader_id")
-                    mr_id = get_field(result, "master_role_id")
+                    mr_ids = get_field(result, "master_roles", default=[])
 
-                    if ctx.author.id != leader_id and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
+                    if ctx.author.id != leader_id and not has_any_roles(ctx.author, mr_ids):
                         reply = discord.Embed(
                             title = "❌ Недостаточно прав",
                             description = (
@@ -703,7 +704,7 @@ class guild_control(commands.Cog):
             projection={
                 "subguilds.name": True,
                 "subguilds.leader_id": True,
-                "master_role_id": True,
+                "master_roles": True,
                 "log_channel": True
             }
         )
@@ -720,11 +721,11 @@ class guild_control(commands.Cog):
             await ctx.send(embed = reply)
         else:
             lc_id = get_field(result, "log_channel")
-            mr_id = get_field(result, "master_role_id")
+            mr_ids = get_field(result, "master_roles", default=[])
             subguild = get_subguild(result, guild_name)
             del result
 
-            if ctx.author.id != subguild["leader_id"] and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
+            if ctx.author.id != subguild["leader_id"] and not has_any_roles(ctx.author, mr_ids):
                 reply = discord.Embed(
                     title = "❌ Недостаточно прав",
                     description = (
@@ -792,11 +793,11 @@ class guild_control(commands.Cog):
             pass
         
         else:
-            mr_id = get_field(result, "master_role_id")
+            mr_ids = get_field(result, "master_roles", default=[])
             subguild = get_subguild(result, guild_name)
             del result
 
-            if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
+            if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_any_roles(ctx.author, mr_ids):
                 reply = discord.Embed(
                     title = "❌ Недостаточно прав",
                     description = (
@@ -909,13 +910,13 @@ class guild_control(commands.Cog):
             pass
         
         else:
-            mr_id = get_field(result, "master_role_id")
+            mr_ids = get_field(result, "master_roles", default=[])
             subguild = get_subguild(result, guild_name)
             del result
 
             length = len(subguild["requests"])
 
-            if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
+            if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_any_roles(ctx.author, mr_ids):
                 correct_args = False
 
                 reply = discord.Embed(
@@ -1030,7 +1031,7 @@ class guild_control(commands.Cog):
             pass
         
         else:
-            mr_id = get_field(result, "master_role_id")
+            mr_ids = get_field(result, "master_roles", default=[])
             subguild = get_subguild(result, guild_name)
             del result
 
@@ -1044,7 +1045,7 @@ class guild_control(commands.Cog):
                     id_list.append(ID)
             length = len(id_list)
 
-            if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
+            if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_any_roles(ctx.author, mr_ids):
                 correct_args = False
 
                 reply = discord.Embed(
@@ -1198,11 +1199,11 @@ class guild_control(commands.Cog):
                 pass
             
             else:
-                mr_id = get_field(result, "master_role_id")
+                mr_ids = get_field(result, "master_roles", default=[])
                 subguild = get_subguild(result, guild_name)
                 del result
 
-                if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]) and not has_roles(ctx.author, [mr_id]):
+                if ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_any_roles(ctx.author, mr_ids):
                     reply = discord.Embed(
                         title = "❌ Недостаточно прав",
                         description = (

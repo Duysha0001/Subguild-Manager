@@ -321,8 +321,8 @@ async def bot_stats(ctx):
             delta_desc += f"{delta_exp[key]} {key} "
 
     link_desc = (
-        "> [Проголосовать за бота](https://top.gg/bot/677976225876017190/vote)\n"
         "> [Добавить на сервер](https://discordapp.com/api/oauth2/authorize?client_id=677976225876017190&permissions=470150209&scope=bot)\n"
+        "> [Проголосовать за бота](https://top.gg/bot/677976225876017190/vote)\n"
         "> [Страничка бота](https://top.gg/bot/677976225876017190)\n"
         "> [Сервер разработчика](https://discord.gg/Hp8XFcp)\n"
         "> [GitHub](https://github.com/EQUENOS/Subguild-Manager)\n"
@@ -348,7 +348,7 @@ async def help(ctx, *, section=None):
     sections = {
         "settings": ["настройки"],
         "guilds": ["гильдии"],
-        "manage guilds": ["set guilds", "настроить гильдию"],
+        "manage guilds": ["set guilds", "настроить гильдию", "mg"],
         "event": ["ивент", "событие"]
     }
     titles = {
