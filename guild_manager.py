@@ -48,7 +48,7 @@ async def get_prefix(client, message):
     else:
         return " _"
 
-client = commands.Bot(command_prefix=get_prefix)
+client = commands.AutoShardedBot(command_prefix=get_prefix)
 client.remove_command("help")
 
 token = str(os.environ.get("guild_manager_token"))
