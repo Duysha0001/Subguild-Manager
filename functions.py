@@ -52,6 +52,7 @@ def find_alias(dict_of_aliases, search):
             break
     return out
 
+
 def has_any_roles(member, role_array):
     if not has_permissions(member, ["administrator"]):
         owned_role_ids = [r.id for r in member.roles]
@@ -67,6 +68,7 @@ def has_any_roles(member, role_array):
         return has
     else:
         return True
+
 
 def has_roles(member, role_array):
     has_them = True
@@ -106,6 +108,14 @@ def has_any_permission(member, perm_array):
                 out = True
                 break
         return out
+
+
+def display_list(array, sep=", ", frame="`"):
+    out = ""
+    for element in array:
+        out += f"{frame}{element}{frame}{sep}"
+    out = out[:-len(sep)]
+    return out if len(out) > 0 else f"{frame}-{frame}"
 
 
 def is_command(text, prefix, client):

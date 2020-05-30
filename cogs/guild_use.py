@@ -15,7 +15,7 @@ from functions import member_limit
 
 #---------- Functions ------------
 from functions import has_roles, get_field, detect, find_alias, Leaderboard, has_permissions
-from functions import Server, Guild, search_and_choose, read_message
+from functions import Server, Guild, search_and_choose, read_message, display_list
 
 def get_subguild(collection_part, subguild_sign):
     out = None
@@ -909,7 +909,8 @@ class guild_use(commands.Cog):
                 description = (
                     "**Описание:** вход в гильдию\n"
                     f"**Использование:** `{p}{cmd} Название гильдии`\n"
-                    f"**Пример:** `{p}{cmd} Короли`"
+                    f"**Пример:** `{p}{cmd} Короли`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -925,6 +926,7 @@ class guild_use(commands.Cog):
                 description = (
                     "**Описание:** подсчитать кол-во перечисленных ролей в существующих гильдиях\n"
                     f"**Использование:** `{p}{cmd} [Гильдия] @роль1 @роль2 ...`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")

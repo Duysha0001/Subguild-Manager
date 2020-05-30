@@ -15,7 +15,7 @@ db = cluster["guild_data"]
 from functions import member_limit
 
 #---------- Functions ------------
-from functions import has_permissions, get_field, detect, find_alias, read_message
+from functions import has_permissions, get_field, detect, find_alias, read_message, display_list
 
 # Other
 def mmorpg_col(col_name):
@@ -983,7 +983,8 @@ class setting_system(commands.Cog):
                 description = (
                     "**Описание:** настраивает префикс бота.\n"
                     f"**Использование:** `{p}{cmd} Новый_префикс`\n"
-                    f"**Пример:** `{p}{cmd} !`"
+                    f"**Пример:** `{p}{cmd} !`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -999,7 +1000,8 @@ class setting_system(commands.Cog):
                 description = (
                     "**Описание:** настраивает пользователя, упоминания которым нужно учитывать в статистике гильдий\n"
                     f"**Использование:** `{p}{cmd} @Пользователь`\n"
-                    f"**Пример:** `{p}{cmd} @MEE6#4876`"
+                    f"**Пример:** `{p}{cmd} @MEE6#4876`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1017,7 +1019,8 @@ class setting_system(commands.Cog):
                     "**Использование:**\n"
                     f"> `{p}{cmd} exp` - по опыту\n"
                     f"> `{p}{cmd} reputation - по репутации`\n"
-                    f"> `{p}{cmd} mentions` - по упоминаниям"
+                    f"> `{p}{cmd} mentions` - по упоминаниям\n\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1033,7 +1036,8 @@ class setting_system(commands.Cog):
                 description = (
                     "**Описание:** настраивает каналы реагирования на команды\n"
                     f'**Использование:** `{p}{cmd} #канал-1 #канал-2 ...`\n'
-                    f"**Сброс:** `{p}{cmd} delete`"
+                    f"**Сброс:** `{p}{cmd} delete`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1049,7 +1053,8 @@ class setting_system(commands.Cog):
                 description = (
                     "**Описание:** убирает начисление опыта за сообщения в указанных каналах.\n"
                     f'**Использование:** `{p}{cmd} #канал-1 #канал-2 ...`\n'
-                    f"**Сброс:** `{p}{cmd} delete`"
+                    f"**Сброс:** `{p}{cmd} delete`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1066,6 +1071,7 @@ class setting_system(commands.Cog):
                     "**Описание:** устанавливает лимит участников во всех гильдиях\n"
                     f'**Использование:** `{p}{cmd} Число`\n'
                     f"**Пример:** `{p}{cmd} 50`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1081,7 +1087,8 @@ class setting_system(commands.Cog):
                 description = (
                     "**Описание:** настраивает канал для логов и отчётов о действиях с гильдиями.\n"
                     f'**Использование:** `{p}{cmd} #канал`\n'
-                    f"**Сброс:** `{p}{cmd} delete`"
+                    f"**Сброс:** `{p}{cmd} delete`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1098,7 +1105,8 @@ class setting_system(commands.Cog):
                     "**Описание:** настраивает роли, дающие её обладателям права на создание и редактирование любых гильдий, а также на кики из гильдий и начисление репутации.\n"
                     f"**Добавить мастер-роль:** `{p}{cmd} add @Роль`\n"
                     f"**Сбросить мастер-роль:** `{p}{cmd} delete @Роль`\n"
-                    f"**Сбросить все:** `{p}{cmd} delete all`\n"
+                    f"**Сбросить все:** `{p}{cmd} delete all`\n\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1116,7 +1124,8 @@ class setting_system(commands.Cog):
                     f"**Добавить:** `{p}{cmd} add @Роль`\n"
                     f"**Сбросить одну:** `{p}{cmd} delete @Роль`\n"
                     f"**Сбросить все:** `{p}{cmd} delete all`\n"
-                    f"**Разрешить всем:** `{p}{cmd} add @everyone`"
+                    f"**Разрешить всем:** `{p}{cmd} add @everyone`\n\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")

@@ -298,8 +298,9 @@ async def bot_stats(ctx):
     servers = client.guilds
     total_users = 0
     total_servers = 0
+    total_shards = client.shard_count
     for server in servers:
-        total_users += len(server.members)
+        total_users += server.member_count
         total_servers += 1
     
     dev_desc = ""
@@ -333,6 +334,7 @@ async def bot_stats(ctx):
         color = mmorpg_col("lilac")
     )
     reply.set_thumbnail(url = f"{client.user.avatar_url}")
+    reply.add_field(name="💠 **Всего шардов**", value=f"> {total_shards}", inline=False)
     reply.add_field(name="📚 **Всего серверов**", value=f"> {total_servers}", inline=False)
     reply.add_field(name="👥 **Всего пользователей**", value=f"> {total_users}", inline=False)
     reply.add_field(name="🌐 **Аптайм**", value=f"> {delta_desc}", inline=False)
@@ -635,7 +637,7 @@ client.loop.create_task(change_status(f"{default_prefix}help", "online"))
 #--------- Loading Cogs ---------
 
 for file_name in os.listdir("./cogs"):
-    if file_name.endswith(".py"): # and not file_name.startswith("dbl"):  # TEMPORARY PARTIAL LOAD
+    if file_name.endswith(".py") and not file_name.startswith("dbl"):  # TEMPORARY PARTIAL LOAD
         client.load_extension(f"cogs.{file_name[:-3]}")
 
 client.run(token)

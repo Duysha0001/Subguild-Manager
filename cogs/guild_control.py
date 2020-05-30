@@ -15,7 +15,7 @@ db = cluster["guild_data"]
 from functions import guild_limit, default_avatar_url, member_limit
 
 #---------- Functions ------------
-from functions import has_any_roles, has_permissions, get_field, detect, find_alias, carve_int, search_and_choose
+from functions import has_any_roles, has_permissions, get_field, detect, find_alias, carve_int, search_and_choose, display_list
 
 # Other
 def anf(user):
@@ -292,7 +292,7 @@ class guild_control(commands.Cog):
                     await post_log(ctx.guild, lc_id, log)
 
     @commands.cooldown(1, 10, commands.BucketType.member)
-    @commands.command(aliases = ["create-guild", "createguild", "cg"])
+    @commands.command(aliases = ["create-guild", "createguild", "cg", "create"])
     async def create_guild(self, ctx, *, guild_name):
         pr = ctx.prefix
         collection = db["subguilds"]
@@ -695,7 +695,7 @@ class guild_control(commands.Cog):
                             await ctx.send(embed = reply)
 
     @commands.cooldown(1, 10, commands.BucketType.member)
-    @commands.command(aliases = ["delete-guild", "deleteguild", "dg"])
+    @commands.command(aliases = ["delete-guild", "deleteguild", "dg", "delete"])
     async def delete_guild(self, ctx, *, guild_name):
         pr = ctx.prefix
         collection = db["subguilds"]
@@ -885,7 +885,7 @@ class guild_control(commands.Cog):
                     )
 
     @commands.cooldown(1, 5, commands.BucketType.member)
-    @commands.command(aliases = ["ac"])
+    @commands.command(aliases = ["ac", "acc"])
     async def accept(self, ctx, num, *, search):
         collection = db["subguilds"]
 
@@ -1351,6 +1351,91 @@ class guild_control(commands.Cog):
                     
                     await ctx.send(embed = reply)
 
+    @commands.cooldown(1, 5, commands.BucketType.member)
+    @commands.command(aliases=["add-xp", "change-xp"])
+    async def xp(self, ctx, _xp, *, member_search=None):
+        if member_search is None:
+            member = ctx.author
+        else:
+            member = detect.member(ctx.guild, member_search)
+        
+        if not has_permissions(ctx.author, ["administrator"]):
+            reply = discord.Embed(
+                title = "💢 Недостаточно прав",
+                description = (
+                    "Требуемые права:\n"
+                    "> Администратор"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
+            await ctx.send(embed = reply)
+        
+        elif member is None:
+            reply = discord.Embed(
+                title = "💢 Неверно указан участник",
+                description = f"Аргумент **{member_search}** должен быть точным тегом (`User#1234`) или упоминанием (`@User`) участника",
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
+            await ctx.send(embed = reply)
+
+        elif not is_int(_xp):
+            reply = discord.Embed(
+                title = "💢 Неверно указано число",
+                description = f"Аргумент **{_xp}** должен быть целым числом, например `45` или `-56`",
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
+            await ctx.send(embed = reply)
+
+        else:
+            _xp = int(_xp)
+            collection = db["subguilds"]
+            result = collection.find_one_and_update(
+                {"_id": ctx.guild.id, f"subguilds.members.{member.id}": {"$exists": True}},
+                {"$inc": { f"subguilds.$.members.{member.id}.messages": _xp }},
+                projection={
+                    "log_channel": True,
+                    "subguilds.name": True,
+                    f"subguilds.members.{member.id}": True
+                }
+            )
+            
+            if result is None:
+                reply = discord.Embed(
+                    title="💢 Пользователь не в гильдии",
+                    description=f"Чтобы пользователь **{anf(member)}** мог получать опыт, он должен находиться в гильдии.",
+                    color=mmorpg_col("vinous")
+                )
+                reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
+                await ctx.send(embed = reply)
+
+            else:
+                log_channel = get_field(result, "log_channel")
+                guild_name = get_field( get_subguild(result, member.id), "name" )
+                del result
+
+                reply = discord.Embed(
+                    title="♻ Опыт участника изменён",
+                    description=f"Опыт **{anf(member)}**, участника гильдии **{guild_name}**, был изменён на **{add_sign(_xp)}** ✨",
+                    color=mmorpg_col("clover")
+                )
+                reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
+                await ctx.send(embed = reply)
+
+                log = discord.Embed(
+                    title="✨ Изменён опыт участника",
+                    description=(
+                        f"**Модератор:** {anf(ctx.author)}\n"
+                        f"**Участник:** {anf(member)}\n"
+                        f"**Гильдия:** {anf(guild_name)}\n"
+                        f"**Изменение:** {add_sign(_xp)}"
+                    ),
+                    color=discord.Color.orange()
+                )
+                await post_log(ctx.guild, log_channel, log)
+
     #========== Errors ==========
     @create_guild.error
     async def create_guild_error(self, ctx, error):
@@ -1362,7 +1447,8 @@ class guild_control(commands.Cog):
                 description = (
                     "**Описание:** создаёт гильдию\n"
                     f"**Использование:** `{p}{cmd} Название гильдии`\n"
-                    f"**Пример:** `{p}{cmd} Короли`"
+                    f"**Пример:** `{p}{cmd} Короли`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1378,20 +1464,21 @@ class guild_control(commands.Cog):
                 description = (
                     "**Описание:** настраивает гильдию\n"
                     "**Параметры:**\n"
-                    "> `name`\n"
-                    "> `description`\n"
-                    "> `avatar`\n"
-                    "> `leader`\n"
-                    "> `helper`\n"
-                    "> `role`\n"
-                    "> `privacy`\n"
-                    "> `limit`\n"
+                    f"> `{p}{cmd} name`\n"
+                    f"> `{p}{cmd} description`\n"
+                    f"> `{p}{cmd} avatar`\n"
+                    f"> `{p}{cmd} leader`\n"
+                    f"> `{p}{cmd} helper`\n"
+                    f"> `{p}{cmd} role`\n"
+                    f"> `{p}{cmd} privacy`\n"
+                    f"> `{p}{cmd} limit`\n"
                     f'**Использование:** `{p}{cmd} Параметр [Название гильдии] Новое значение`\n'
                     f'**Пример:** `{p}{cmd} name [Цари Горы] Хранители`\n'
                     f'**Подробнее о параметрах:**\n'
                     f"`{p}{cmd} name`\n"
                     f"`{p}{cmd} description`\n"
-                    f"`{p}{cmd} ...`\n"
+                    f"`{p}{cmd} ...`\n\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1407,7 +1494,8 @@ class guild_control(commands.Cog):
                 description = (
                     "**Описание:** удаляет гильдию\n"
                     f"**Использование:** `{p}{cmd} Название гильдии`\n"
-                    f"**Пример:** `{p}{cmd} Короли`"
+                    f"**Пример:** `{p}{cmd} Короли`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1423,7 +1511,8 @@ class guild_control(commands.Cog):
                 description = (
                     "**Описание:** просмотр списка заявок на вступление в какую-либо гильдию\n"
                     f'**Использование:** `{p}{cmd} Страница Гильдия`\n'
-                    f"**Пример:** `{p}{cmd} 1 Короли`"
+                    f"**Пример:** `{p}{cmd} 1 Короли`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1441,7 +1530,8 @@ class guild_control(commands.Cog):
                     f'**Использование:** `{p}{cmd} Номер_заявки Гильдия`\n'
                     f"**Примеры:** `{p}{cmd} 1 Короли`\n"
                     f">> `{p}{cmd} all Короли`\n"
-                    f"**Список заявок:** `{p}requests Страница Гильдия`"
+                    f"**Список заявок:** `{p}requests Страница Гильдия`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1459,7 +1549,8 @@ class guild_control(commands.Cog):
                     f'**Использование:** `{p}{cmd} Номер_заявки Гильдия`\n'
                     f"**Примеры:** `{p}{cmd} 1 Короли`\n"
                     f">> `{p}{cmd} all Короли`\n"
-                    f"**Список заявок:** `{p}requests Страница Гильдия`"
+                    f"**Список заявок:** `{p}requests Страница Гильдия`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1478,7 +1569,8 @@ class guild_control(commands.Cog):
                     f"> `{p}{cmd} user`\n"
                     f"> `{p}{cmd} under`\n"
                     f"> `{p}{cmd} last`\n"
-                    "Введите одну из команд для подробностей"
+                    "Введите одну из команд для подробностей\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1497,12 +1589,29 @@ class guild_control(commands.Cog):
                     f"> `{p}{cmd} change`\n"
                     f"> `{p}{cmd} set`\n"
                     f"**Примеры:** `{p}{cmd} change -10 Короли Участник был наказан`\n"
-                    f">> `{p}{cmd} set 100 Короли Начнём с чистого листа`"
+                    f">> `{p}{cmd} set 100 Короли Начнём с чистого листа`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
 
+    @xp.error
+    async def xp_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+                p = ctx.prefix
+                cmd = ctx.command.name
+                reply = discord.Embed(
+                    title = f"❓ Об аргументах `{p}{cmd}`",
+                    description = (
+                        "**Описание:** изменяет опыт участника гильдии\n"
+                        f"**Использование:** `{p}{cmd} Кол-во @Участник`\n"
+                        f"**Примеры:** `{p}{cmd} 123 @User#1234`\n"
+                        f"**Синонимы:** {display_list(ctx.command.aliases)}"
+                    )
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
 
 def setup(client):
     client.add_cog(guild_control(client))
