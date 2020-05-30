@@ -1,23 +1,3 @@
-<style>
-    .block {
-      font-family: arial;
-      line-height: 150%;
-    }
-</style>
-
-<style>
-	mark {
-		background: #f2f3f5;
-        padding: 0 3px;
-        border: 1px none #f2f3f5;
-  		border-radius: 5px;
-  		color: #88660f;
-        font-family: monospace;
-  		font-weight: 100;
-  	}
-</style>
- 
-<div class="block">
 <header>
 	<h1>Список команд: <mark>.help</mark></h1>
 </header>
