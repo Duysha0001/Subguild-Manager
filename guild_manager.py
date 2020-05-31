@@ -637,7 +637,7 @@ client.loop.create_task(change_status(f"{default_prefix}help", "online"))
 #--------- Loading Cogs ---------
 
 for file_name in os.listdir("./cogs"):
-    if file_name.endswith(".py") and not file_name.startswith("dbl"):  # TEMPORARY PARTIAL LOAD
+    if file_name.endswith(".py"):
         client.load_extension(f"cogs.{file_name[:-3]}")
 
 client.run(token)
