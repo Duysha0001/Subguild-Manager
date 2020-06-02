@@ -12,7 +12,7 @@ cluster = MongoClient(app_string)
 db = cluster["guild_data"]
 
 #---------- Variables ------------
-from functions import member_limit
+from functions import member_limit, guild_limit
 
 #---------- Functions ------------
 from functions import has_permissions, get_field, detect, find_alias, read_message, display_list
@@ -67,12 +67,7 @@ class setting_system(commands.Cog):
         result = collection.find_one(
             {"_id": ctx.guild.id},
             projection={
-                "mentioner_id": True,
-                "member_limit": True,
-                "master_roles": True,
-                "ignore_chats": True,
-                "log_channel": True,
-                "creator_roles": True
+                "subguilds": False
             }
         )
         log_channel_id = get_field(result, "log_channel")
@@ -80,6 +75,7 @@ class setting_system(commands.Cog):
         mr_ids = get_field(result, "master_roles", default=[])
         cr_ids = get_field(result, "creator_roles", default=[])
         lim_desc = get_field(result, "member_limit", default=member_limit)
+        g_lim_desc = get_field(result, "guild_limit", default=guild_limit)
         igch = get_field(result, "ignore_chats")
 
         if igch is None:
@@ -126,6 +122,7 @@ class setting_system(commands.Cog):
         reply.add_field(name="**Роли мастера гильдий:**", value=f"{mr_desc}")
         reply.add_field(name="**Роли для создания гильдий**", value=f"{cr_desc}")
         reply.add_field(name="**Вести подсчёт упоминаний от**", value=f"{ping_desc}", inline=False)
+        reply.add_field(name="**Лимит гильдий на сервере**", value=f"> {g_lim_desc}")
         reply.add_field(name="**Лимит пользователей на гильдию**", value=f"> {lim_desc}")
         reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = reply)
@@ -161,7 +158,7 @@ class setting_system(commands.Cog):
             reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
             await ctx.send(embed = reply)
 
-    @commands.cooldown(1, 10, commands.BucketType.member)
+    @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["cmd-channels", "cmdchannels", "cc"])
     async def cmd_channels(self, ctx, *, text_input):
         collection = db["cmd_channels"]
@@ -240,7 +237,7 @@ class setting_system(commands.Cog):
                 )
                 await ctx.send(embed = reply)
 
-    @commands.cooldown(1, 10, commands.BucketType.member)
+    @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["ignore-channels", "ignore", "ic"])
     async def ignore_channels(self, ctx, *, text_input):
         collection = db["subguilds"]
@@ -382,7 +379,7 @@ class setting_system(commands.Cog):
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
 
-    @commands.cooldown(1, 10, commands.BucketType.member)
+    @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["members-limit", "memberslimit", "ml"])
     async def members_limit(self, ctx, lim):
         pr = ctx.prefix
@@ -426,6 +423,57 @@ class setting_system(commands.Cog):
                 title = "✅ Настроено",
                 description = (
                     f"Текущий лимит пользователей в гильдиях: **{lim}**\n"
+                    f"Отчёт о настройках: `{pr}settings`"
+                ),
+                color = mmorpg_col("clover")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+    @commands.cooldown(1, 5, commands.BucketType.member)
+    @commands.command(name="guild-limit", aliases = ["guildlimit", "gl"])
+    async def guilds_limit(self, ctx, lim):
+        pr = ctx.prefix
+        if not has_permissions(ctx.author, ["administrator"]):
+            reply = discord.Embed(
+                title = "💢 Недостаточно прав",
+                description = (
+                    "Требуемые права:\n"
+                    "> Администратор"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        elif not lim.isdigit():
+            reply = discord.Embed(
+                title = "💢 Неверный аргумент",
+                description = f"Аргумент {lim} должен быть целым положительным числом",
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        elif int(lim) > guild_limit:
+            reply = discord.Embed(
+                title = "❌ Ошибка",
+                description = f"Лимит кланов не может превышать **{guild_limit}**",
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        else:
+            collection = db["subguilds"]
+            lim = int(lim)
+
+            collection.find_one_and_update(
+                {"_id": ctx.guild.id},
+                {"$set": {"guild_limit": lim}},
+                upsert=True
+            )
+            reply = discord.Embed(
+                title = "✅ Настроено",
+                description = (
+                    f"Текущий лимит кланов на сервере: **{lim}**\n"
                     f"Отчёт о настройках: `{pr}settings`"
                 ),
                 color = mmorpg_col("clover")
@@ -820,7 +868,7 @@ class setting_system(commands.Cog):
                         reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
                         await ctx.send(embed=reply)
     
-    @commands.cooldown(1, 10, commands.BucketType.member)
+    @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["ping-count", "pingcount", "pc"])
     async def ping_count(self, ctx, u_search):
         collection = db["subguilds"]
@@ -1071,6 +1119,23 @@ class setting_system(commands.Cog):
                     "**Описание:** устанавливает лимит участников во всех гильдиях\n"
                     f'**Использование:** `{p}{cmd} Число`\n'
                     f"**Пример:** `{p}{cmd} 50`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+    @guilds_limit.error
+    async def guilds_limit_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            p = ctx.prefix
+            cmd = ctx.command.name
+            reply = discord.Embed(
+                title = f"❓ Об аргументах `{p}{cmd}`",
+                description = (
+                    "**Описание:** устанавливает лимит кланов на сервере\n"
+                    f'**Использование:** `{p}{cmd} Число`\n'
+                    f"**Пример:** `{p}{cmd} 20`\n"
                     f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )

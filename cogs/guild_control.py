@@ -306,9 +306,11 @@ class guild_control(commands.Cog):
                 "subguilds.name": True,
                 "master_roles": True,
                 "creator_roles": True,
-                "log_channel": True
+                "log_channel": True,
+                "guild_limit": True
             }
         )
+        g_lim = get_field(result, "guild_limit", default=guild_limit)
         lc_id = get_field(result, "log_channel")
         req_roles = get_field(result, "master_roles", default=[])
         cr_ids = get_field(result, "creator_roles", default=[])
@@ -334,11 +336,11 @@ class guild_control(commands.Cog):
             if result != None and "subguilds" in result:
                 total_guilds = len(result["subguilds"])
 
-            if total_guilds >= guild_limit:
+            if total_guilds >= g_lim:
                 reply = discord.Embed(
                     title = "🛠 Максимум гильдий",
                     description = (
-                        f"На этом сервере достигнут максимум гильдий - {guild_limit}\n"
+                        f"На этом сервере достигнут максимум гильдий - {g_lim}\n"
                         f"Удалить гильдию: `{pr}delete-guild Гильдия`"
                     ),
                     color = discord.Color.dark_orange()
