@@ -15,7 +15,7 @@ from functions import member_limit
 
 #---------- Functions ------------
 from functions import has_roles, get_field, detect, find_alias, Leaderboard, has_permissions
-from functions import Server, Guild, search_and_choose, read_message, display_list
+from functions import Server, Guild, search_and_choose, read_message, display_list, abr, vis_num
 
 def get_subguild(collection_part, subguild_sign):
     out = None
@@ -519,7 +519,7 @@ class guild_use(commands.Cog):
             for pair in lb.pairs:
                 pos += 1
                 guild_name = anf(pair[0])
-                table += f"**{pos})** {guild_name} • **{pair[1]}** {filters[filtration]}\n"
+                table += f"**{pos})** {guild_name} • **{abr(pair[1])}** {filters[filtration]}\n"
             
             lb = discord.Embed(
                 title = f"⚔ Гильдии сервера {ctx.guild.name}",
@@ -594,7 +594,7 @@ class guild_use(commands.Cog):
                     for pair in my_page:
                         pos += 1
                         user = ctx.guild.get_member(pair[0])
-                        desc += f"**{pos})** {anf(user)} • **{pair[1]}** ✨\n"
+                        desc += f"**{pos})** {anf(user)} • **{abr(pair[1])}** ✨\n"
                     
                     reply = discord.Embed(
                         title = f"🌐 Топ всех участников гильдий сервера\n{ctx.guild.name}",
@@ -668,10 +668,10 @@ class guild_use(commands.Cog):
                 helper = ctx.guild.get_member(subguild.helper_id)
                 reply.add_field(name = "🔰 Помощник", value = f"> {anf(helper)}", inline=False)
             reply.add_field(name = "👥 Всего участников", value = f"> {total_memb} из {local_lim}", inline=False)
-            reply.add_field(name = "✨ Всего опыта", value = f"> {total_mes}", inline=False)
-            reply.add_field(name = "🔅 Репутация", value = f"> {subguild.reputation}", inline=False)
+            reply.add_field(name = "✨ Всего опыта", value = f"> {vis_num(total_mes)}", inline=False)
+            reply.add_field(name = "🔅 Репутация", value = f"> {vis_num(subguild.reputation)}", inline=False)
             if subguild.mentions > 0:
-                reply.add_field(name = "📯 Упоминаний", value = f"> {subguild.mentions}", inline=False)
+                reply.add_field(name = "📯 Упоминаний", value = f"> {vis_num(subguild.mentions)}", inline=False)
             if subguild.role_id != None:
                 reply.add_field(name = "🎗 Роль", value = f"> <@&{subguild.role_id}>", inline=False)
             if subguild.private:
@@ -762,7 +762,7 @@ class guild_use(commands.Cog):
                     for pair in my_page:
                         pos += 1
                         user = ctx.guild.get_member(pair[0])
-                        desc += f"**{pos}.** {anf(user)} • **{pair[1]}** ✨\n"
+                        desc += f"**{pos}.** {anf(user)} • **{abr(pair[1])}** ✨\n"
                     
                     lb = discord.Embed(
                         title = f"👥 Участники гильдии {subguild.name}",
@@ -816,7 +816,7 @@ class guild_use(commands.Cog):
 
                 stat_emb = discord.Embed(color = mmorpg_col("paper"))
                 stat_emb.add_field(name="🛡 Гильдия", value=anf(subguild['name']), inline = False)
-                stat_emb.add_field(name="✨ Заработано опыта", value=f"{user_mes}", inline = False)
+                stat_emb.add_field(name="✨ Заработано опыта", value=f"{vis_num(user_mes)}", inline = False)
                 stat_emb.add_field(name="🏅 Место", value=f"{place} / {len(pairs)}", inline = False)
                 stat_emb.set_author(name = f"Профиль 🔎 {user}", icon_url = f"{user.avatar_url}")
                 stat_emb.set_thumbnail(url = subguild["avatar_url"])
