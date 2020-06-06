@@ -25,10 +25,13 @@ def vis_num(number, sep=" ", step=3):
     number = str(number)
     length = len(number)
     out = ""
-    for i in range(length, 0, -step):
-        out = sep + number[i - step:i] + out
-    out = out.lstrip(sep)
-    return out if length % step == 0 else f"{number[:i]}{sep}{out}"
+    if length < step:
+        out = number
+    else:
+        for i in range(length, 0, -step):
+            out = sep + number[i - step:i] + out
+        out = out.lstrip(sep)
+    return out if length % step == 0 or length < step else f"{number[:i]}{sep}{out}"
 
 
 def get_field(Dict, *key_words, default=None):
