@@ -8,6 +8,29 @@ member_limit = 500
 default_avatar_url = "https://cdn.discordapp.com/attachments/664230839399481364/677534213418778660/default_image.png"
 
 
+def abr(num):
+    names = ["K", "M", "B", "T"]
+    p = 0
+    while num // 1000 > 0 and p < len(names):
+        mant = round(num / 1000, 1)
+        num //= 1000
+        p += 1
+    if p > 0:
+        return f"{mant} {names[p - 1]}"
+    else:
+        return str(num)
+
+
+def vis_num(number, sep=" ", step=3):
+    number = str(number)
+    length = len(number)
+    out = ""
+    for i in range(length, 0, -step):
+        out = sep + number[i - step:i] + out
+    out = out.lstrip(sep)
+    return out if length % step == 0 else f"{number[:i]}{sep}{out}"
+
+
 def get_field(Dict, *key_words, default=None):
     if Dict is not None:
         for key in key_words:
