@@ -11,7 +11,7 @@ cluster = MongoClient(app_string)
 db = cluster["guild_data"]
 
 #---------- Variables ------------
-xo_award = 10
+xo_award = 1
 
 #---------- Functions ------------
 from functions import has_permissions, detect, get_field, Leaderboard, read_message, trigger_reaction, is_command
