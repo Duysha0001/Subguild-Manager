@@ -519,7 +519,7 @@ class guild_use(commands.Cog):
             for pair in lb.pairs:
                 pos += 1
                 guild_name = anf(pair[0])
-                table += f"**{pos})** {guild_name} • **{abr(pair[1])}** {filters[filtration]}\n"
+                table += f"**{pos})** {guild_name} • **{vis_num(pair[1])}** {filters[filtration]}\n"
             
             lb = discord.Embed(
                 title = f"⚔ Гильдии сервера {ctx.guild.name}",
@@ -594,7 +594,7 @@ class guild_use(commands.Cog):
                     for pair in my_page:
                         pos += 1
                         user = ctx.guild.get_member(pair[0])
-                        desc += f"**{pos})** {anf(user)} • **{abr(pair[1])}** ✨\n"
+                        desc += f"**{pos})** {anf(user)} • **{vis_num(pair[1])}** ✨\n"
                     
                     reply = discord.Embed(
                         title = f"🌐 Топ всех участников гильдий сервера\n{ctx.guild.name}",
@@ -762,7 +762,7 @@ class guild_use(commands.Cog):
                     for pair in my_page:
                         pos += 1
                         user = ctx.guild.get_member(pair[0])
-                        desc += f"**{pos}.** {anf(user)} • **{abr(pair[1])}** ✨\n"
+                        desc += f"**{pos}.** {anf(user)} • **{vis_num(pair[1])}** ✨\n"
                     
                     lb = discord.Embed(
                         title = f"👥 Участники гильдии {subguild.name}",

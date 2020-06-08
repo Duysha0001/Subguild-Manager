@@ -231,6 +231,25 @@ async def search_and_choose(list_of_subguilds, search, message, prefix, client):
             return 1337
 
 
+async def trigger_reaction(message, emojis, user_to_check, timeout, client):
+
+    def check(reaction, user):
+        return (
+            message.id == reaction.message.id and
+            user_to_check.id == user.id and
+            reaction.emoji in emojis
+        )
+    
+    try:
+        reaction, user = await client.wait_for("reaction_add", check=check, timeout=timeout)
+    
+    except asyncio.TimeoutError:
+        return None
+    
+    else:
+        return (reaction, user)
+
+
 class Guild:
     def __init__(self, data):
         self.name = get_field(data, "name")
