@@ -276,6 +276,17 @@ async def logout(ctx):
         await client.logout()
 
 @client.command()
+async def execute(ctx, *, text):
+    if ctx.author.id in owner_ids:
+        text = text.strip("```")
+        if text.startswith("py"):
+            text = text[2:]
+        try:
+            exec(text)
+        except Exception as e:
+            await ctx.send(f">>> Произошёл сбой: {e}")
+
+@client.command()
 async def status(ctx, *, text):
     if ctx.author.id in owner_ids:
         if "||" in text:
