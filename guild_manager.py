@@ -66,6 +66,8 @@ statuses = {
     "invisible": discord.Status.invisible
 }
 
+to_send = []
+
 #======== Functions ========
 from functions import get_field, find_alias, has_permissions, is_command, Guild
 
@@ -144,6 +146,16 @@ async def try_send(channel, content=None, embed=None):
     except Exception:
         dm_opened = False
     return dm_opened
+
+async def async_exec(code, *args, **kwargs):
+    # Make an async function with the code and `exec` it
+    exec(
+        f'async def __ex(): ' +
+        ''.join(f'\n {l}' for l in code.split('\n')),
+        *args, **kwargs
+    )
+    # Get `__ex` from local variables, call it and return the result
+    return await locals()['__ex']()
 
 class LocalGuildData:
     def __init__(self, folder_name):
@@ -281,10 +293,16 @@ async def execute(ctx, *, text):
         text = text.strip("```")
         if text.startswith("py"):
             text = text[2:]
+
         try:
-            exec(text)
+            global to_send
+            exec(text, {"ctx": ctx, "client": client, "db": db, "to_send": to_send, "discord": discord})
+            for thing in to_send:
+                await ctx.send(thing)
+            to_send = []
+            
         except Exception as e:
-            await ctx.send(f">>> Произошёл сбой: {e}")
+            await ctx.send(f"```>>> Произошёл сбой: {e}```")
 
 @client.command()
 async def status(ctx, *, text):
@@ -649,6 +667,9 @@ client.loop.create_task(change_status(f"{default_prefix}help", "online"))
 
 for file_name in os.listdir("./cogs"):
     if file_name.endswith(".py"):# and not file_name.startswith("dbl"):  # TEMPORARY PARTIAL LOAD
-        client.load_extension(f"cogs.{file_name[:-3]}")
+        try:
+            client.load_extension(f"cogs.{file_name[:-3]}")
+        except Exception as e:
+            print(f">> Error: {e}")
 
 client.run(token)
