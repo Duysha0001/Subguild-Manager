@@ -126,6 +126,10 @@ def array(date_time):
 def dt(array):
     return datetime.datetime(*array)
 
+def add_tabs(text, amount=1):
+    text = "\n" + text
+    return text.replace("\n", "\n" + amount * "    ")
+
 async def send_to_dev(content=None, embed=None):
     dev_server_id = 670679133294034995
     key_name = "активность-пользователей"
@@ -146,16 +150,6 @@ async def try_send(channel, content=None, embed=None):
     except Exception:
         dm_opened = False
     return dm_opened
-
-async def async_exec(code, *args, **kwargs):
-    # Make an async function with the code and `exec` it
-    exec(
-        f'async def __ex(): ' +
-        ''.join(f'\n {l}' for l in code.split('\n')),
-        *args, **kwargs
-    )
-    # Get `__ex` from local variables, call it and return the result
-    return await locals()['__ex']()
 
 class LocalGuildData:
     def __init__(self, folder_name):
@@ -290,22 +284,41 @@ async def logout(ctx):
 @client.command()
 async def execute(ctx, *, text):
     if ctx.author.id in owner_ids:
-        text = text.strip("```")
-        if text.startswith("py"):
-            text = text[2:]
+        text = add_tabs(text, 3)
+        cog_code = open("cogs/ghost_cog.py", "r", encoding="utf8").read()
+        length = len(cog_code)
 
-        try:
-            global to_send
-            exec(text, {"ctx": ctx, "client": client, "db": db, "to_send": to_send, "discord": discord})
-            for thing in to_send:
-                try:
-                    await ctx.send(**thing)
-                except Exception as e:
-                    await ctx.send(f"```>>> An exception occurred: {e}```")
-            to_send = []
+        u_string, d_string = "# INSERT_START", "# INSERT_END"
+        u_wid, d_wid = len(u_string), len(d_string)
+        u_i, d_i = None, None
+
+        i = 0
+        while i < length:
+            if cog_code[i:i + u_wid] == u_string:
+                i += u_wid
+                u_i = i
+                while i < length:
+                    if cog_code[i:i + d_wid] == d_string:
+                        d_i = i
+                        break
+                    i += 1
+            if u_i is not None:
+                break
+            i += 1
+        
+        if u_i is None:
+            await ctx.send("```>>> No placeholders detected in ghost_cog.py```")
+        else:
+            if d_i is None:
+                d_i = u_i
+            cog_code = f"{cog_code[:u_i]}\n{text}\n{cog_code[d_i:]}"
+
+            with open("cogs/ghost_cog.py", "w", encoding="utf8") as f:
+                f.write(cog_code)
             
-        except Exception as e:
-            await ctx.send(f"```>>> Произошёл сбой: {e}```")
+            client.reload_extension("cogs.ghost_cog")
+            await ctx.send("```>>> Ghost cog updated```")
+
 
 @client.command()
 async def status(ctx, *, text):
