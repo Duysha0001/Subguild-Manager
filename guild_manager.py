@@ -284,7 +284,11 @@ async def logout(ctx):
 @client.command()
 async def execute(ctx, *, text):
     if ctx.author.id in owner_ids:
+        text = text.strip("```")
+        if text.startswith("py"):
+            text = text[2:]
         text = add_tabs(text, 3)
+
         cog_code = open("cogs/ghost_cog.py", "r", encoding="utf8").read()
         length = len(cog_code)
 
@@ -318,7 +322,6 @@ async def execute(ctx, *, text):
             
             client.reload_extension("cogs.ghost_cog")
             await ctx.send("```>>> Ghost cog updated```")
-
 
 @client.command()
 async def status(ctx, *, text):
@@ -549,27 +552,27 @@ async def on_message(message):
                 # GoT event: temporary "$or" query operator
                 result = collection.find_one(
                     {
-                        "_id": server_id,
-                        "$or": [
-                            {f"subguilds.members.{user_id}": {"$exists": True}},
-                            {f"night_watch.members.{user_id}": {"$exists": True}}
-                        ]
-                    }
+                        "_id": server_id, f"subguilds.members.{user_id}": {"$exists": True}
+                    },
+                    projection={"ignore_chats": True, "xp_locked": True, "subguilds": True}
                 )
                 to_ignore = get_field(result, "ignore_chats", default=[])
-                if channel_id not in to_ignore and result is not None:
+                xp_locked = get_field(result, "xp_locked", default=False)
+
+                if not xp_locked and channel_id not in to_ignore:
                     # GoT event: checking where to add XP
                     if str(user_id) in get_field(result, "night_watch", "members", default=[]):
-                        collection.find_one_and_update(
-                            {"_id": server_id, f"night_watch.members.{user_id}": {"$exists": True}},
-                            {"$inc": {f"night_watch.members.{user_id}": 10}}
-                        )
+                        pass
+                    #     collection.find_one_and_update(
+                    #         {"_id": server_id, f"night_watch.members.{user_id}": {"$exists": True}},
+                    #         {"$inc": {f"night_watch.members.{user_id}": 10}}
+                    #     )
 
                     else:
                         sg_found = False
                         sg_name = None
                         S, M = -1, -1
-                        for sg in result["subguilds"]:
+                        for sg in get_field(result, "subguilds", default=[]):
                             total_mes = 0
                             total_memb = 0
                             for key in sg["members"]:
