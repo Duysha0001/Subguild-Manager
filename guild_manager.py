@@ -298,7 +298,10 @@ async def execute(ctx, *, text):
             global to_send
             exec(text, {"ctx": ctx, "client": client, "db": db, "to_send": to_send, "discord": discord})
             for thing in to_send:
-                await ctx.send(thing)
+                try:
+                    await ctx.send(**thing)
+                except Exception as e:
+                    await ctx.send(f"```>>> An exception occurred: {e}```")
             to_send = []
             
         except Exception as e:
