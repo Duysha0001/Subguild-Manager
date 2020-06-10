@@ -77,6 +77,7 @@ class setting_system(commands.Cog):
         lim_desc = get_field(result, "member_limit", default=member_limit)
         g_lim_desc = get_field(result, "guild_limit", default=guild_limit)
         igch = get_field(result, "ignore_chats")
+        xp_locked = get_field(result, "xp_locked", default=False)
 
         if igch is None:
             ig_desc = "> Отсутствуют\n"
@@ -109,6 +110,11 @@ class setting_system(commands.Cog):
             for ID in cr_ids:
                 cr_desc += f"> <@&{ID}>\n"
         
+        if xp_locked:
+            xpl_desc = "✅ Включена"
+        else:
+            xpl_desc = "❌ Выключена"
+
         reply = discord.Embed(
             title = "⚙ Текущие настройки сервера",
             description = (
@@ -124,6 +130,8 @@ class setting_system(commands.Cog):
         reply.add_field(name="**Вести подсчёт упоминаний от**", value=f"{ping_desc}", inline=False)
         reply.add_field(name="**Лимит гильдий на сервере**", value=f"> {g_lim_desc}")
         reply.add_field(name="**Лимит пользователей на гильдию**", value=f"> {lim_desc}")
+        reply.add_field(name="**Блокировка опыта**", value=f"> {xpl_desc}", inline=False)
+
         reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = reply)
 
@@ -314,6 +322,71 @@ class setting_system(commands.Cog):
                     color = mmorpg_col("lilac")
                 )
                 await ctx.send(embed = reply)
+
+    @commands.cooldown(1, 5, commands.BucketType.member)
+    @commands.command(aliases = ["xp-lock", "freeze"])
+    async def xp_lock(self, ctx, option):
+        p = ctx.prefix
+        option = option.lower()
+        if not has_permissions(ctx.author, ["administrator"]):
+            reply = discord.Embed(
+                title = "💢 Недостаточно прав",
+                description = (
+                    "Требуемые права:\n"
+                    "> Администратор"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        
+        elif option in ["on", "вкл"]:
+            collection = db["subguilds"]
+            collection.update_one(
+                {"_id": ctx.guild.id},
+                {"$set": {"xp_locked": True}},
+                upsert=True
+            )
+            reply = discord.Embed(
+                title = "🔒 Выполнено",
+                description = (
+                    "Включена блокировка опыта\n"
+                    f"Выключить: `{p}xp-lock off`"
+                ),
+                color = mmorpg_col("clover")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+        elif option in ["off", "выкл"]:
+            collection = db["subguilds"]
+            collection.update_one(
+                {"_id": ctx.guild.id},
+                {"$set": {"xp_locked": False}},
+                upsert=True
+            )
+            reply = discord.Embed(
+                title = "🔑 Выполнено",
+                description = (
+                    "Блокировка опыта выключена\n"
+                    f"Включить: `{p}xp-lock on`"
+                ),
+                color = mmorpg_col("clover")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+        else:
+            reply = discord.Embed(
+                title = f"💢 Неверная опция `{option}`",
+                description = (
+                    f"`{p}xp-lock on` - остановить доход опыта\n"
+                    f"`{p}xp-lock off` - возобновить доход опыта"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
 
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["log-channel", "logchannel", "logs-channel", "lc"])
@@ -1102,6 +1175,22 @@ class setting_system(commands.Cog):
                     "**Описание:** убирает начисление опыта за сообщения в указанных каналах.\n"
                     f'**Использование:** `{p}{cmd} #канал-1 #канал-2 ...`\n'
                     f"**Сброс:** `{p}{cmd} delete`\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+    @xp_lock.error
+    async def xp_lock_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            p = ctx.prefix
+            cmd = ctx.command.name
+            reply = discord.Embed(
+                title = f"❓ Об аргументах `{p}{cmd}`",
+                description = (
+                    "**Описание:** выключает начисление опыта\n"
+                    f'**Использование:** `{p}{cmd} on | off`\n\n'
                     f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
             )
