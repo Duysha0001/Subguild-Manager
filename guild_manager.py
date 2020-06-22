@@ -7,6 +7,8 @@ from xlsxwriter import Workbook
 
 import pymongo
 from pymongo import MongoClient
+
+# Logging in
 app_string = str(os.environ.get("cluster_app_string"))
 cluster = MongoClient(app_string)
 db = cluster["guild_data"]
