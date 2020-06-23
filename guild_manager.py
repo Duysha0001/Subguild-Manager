@@ -349,6 +349,7 @@ async def bot_stats(ctx):
     total_users = 0
     total_servers = 0
     total_shards = client.shard_count
+
     for server in servers:
         total_users += server.member_count
         total_servers += 1
@@ -387,6 +388,7 @@ async def bot_stats(ctx):
     reply.add_field(name="💠 **Всего шардов**", value=f"> {total_shards}", inline=False)
     reply.add_field(name="📚 **Всего серверов**", value=f"> {total_servers}", inline=False)
     reply.add_field(name="👥 **Всего пользователей**", value=f"> {total_users}", inline=False)
+    reply.add_field(name="🛰 **Пинг**", value=f"> {client.ws.latency * 1000:.0f} ms", inline = False)
     reply.add_field(name="🌐 **Аптайм**", value=f"> {delta_desc}", inline=False)
     reply.add_field(name="🛠 **Разработчик**", value=f"{dev_desc}\nБлагодарность:\n> VernonRoshe")
     reply.add_field(name="🔗 **Ссылки**", value=link_desc)
