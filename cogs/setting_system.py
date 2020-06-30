@@ -78,6 +78,7 @@ class setting_system(commands.Cog):
         g_lim_desc = get_field(result, "guild_limit", default=guild_limit)
         igch = get_field(result, "ignore_chats")
         xp_locked = get_field(result, "xp_locked", default=False)
+        join_filter = get_field(result, "auto_join", default=False)
 
         if igch is None:
             ig_desc = "> Отсутствуют\n"
@@ -114,6 +115,10 @@ class setting_system(commands.Cog):
             xpl_desc = "✅ Включена"
         else:
             xpl_desc = "❌ Выключена"
+        if join_filter:
+            aj_desc = "✅ Включен"
+        else:
+            aj_desc = "❌ Выключен"
 
         reply = discord.Embed(
             title = "⚙ Текущие настройки сервера",
@@ -130,7 +135,8 @@ class setting_system(commands.Cog):
         reply.add_field(name="**Вести подсчёт упоминаний от**", value=f"{ping_desc}", inline=False)
         reply.add_field(name="**Лимит гильдий на сервере**", value=f"> {g_lim_desc}")
         reply.add_field(name="**Лимит пользователей на гильдию**", value=f"> {lim_desc}")
-        reply.add_field(name="**Блокировка опыта**", value=f"> {xpl_desc}", inline=False)
+        reply.add_field(name="**Блокировка опыта**", value=f"> {xpl_desc}")
+        reply.add_field(name="**Авто вход в гильдии**", value=f"> {aj_desc}")
 
         reply.set_thumbnail(url = f"{ctx.guild.icon_url}")
         await ctx.send(embed = reply)
@@ -382,6 +388,71 @@ class setting_system(commands.Cog):
                 description = (
                     f"`{p}xp-lock on` - остановить доход опыта\n"
                     f"`{p}xp-lock off` - возобновить доход опыта"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+    @commands.cooldown(1, 5, commands.BucketType.member)
+    @commands.command(aliases = ["auto-join", "join-filter", "aj"])
+    async def auto_join(self, ctx, option):
+        p = ctx.prefix
+        option = option.lower()
+        if not has_permissions(ctx.author, ["administrator"]):
+            reply = discord.Embed(
+                title = "💢 Недостаточно прав",
+                description = (
+                    "Требуемые права:\n"
+                    "> Администратор"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        
+        elif option in ["on", "вкл"]:
+            collection = db["subguilds"]
+            collection.update_one(
+                {"_id": ctx.guild.id},
+                {"$set": {"auto_join": True}},
+                upsert=True
+            )
+            reply = discord.Embed(
+                title = "🔒 Выполнено",
+                description = (
+                    "Включен режим автоматического распределения по гильдиям.\n"
+                    f"Выключить: `{p}auto-join off`"
+                ),
+                color = mmorpg_col("clover")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+        elif option in ["off", "выкл"]:
+            collection = db["subguilds"]
+            collection.update_one(
+                {"_id": ctx.guild.id},
+                {"$set": {"auto_join": False}},
+                upsert=True
+            )
+            reply = discord.Embed(
+                title = "🔑 Выполнено",
+                description = (
+                    "Выключен режим автоматического распределения по гильдиям. Теперь участники сами могут выбрать гильдию для вступления.\n"
+                    f"Включить: `{p}auto-join on`"
+                ),
+                color = mmorpg_col("clover")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+        else:
+            reply = discord.Embed(
+                title = f"💢 Неверная опция `{option}`",
+                description = (
+                    f"`{p}auto-join on` - включить режим автоматического распределения по гильдиям.\n"
+                    f"`{p}auto-join off` - выключить"
                 ),
                 color = mmorpg_col("vinous")
             )
@@ -1190,6 +1261,22 @@ class setting_system(commands.Cog):
                 title = f"❓ Об аргументах `{p}{cmd}`",
                 description = (
                     "**Описание:** выключает начисление опыта\n"
+                    f'**Использование:** `{p}{cmd} on | off`\n\n'
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+    @auto_join.error
+    async def auto_join_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            p = ctx.prefix
+            cmd = ctx.command.name
+            reply = discord.Embed(
+                title = f"❓ Об аргументах `{p}{cmd}`",
+                description = (
+                    f"**Описание:** когда автоматический вход включен, команда `{p}join` сама определяет гильдию, в которую добавит участника.\n"
                     f'**Использование:** `{p}{cmd} on | off`\n\n'
                     f"**Синонимы:** {display_list(ctx.command.aliases)}"
                 )
