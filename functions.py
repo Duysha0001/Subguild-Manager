@@ -1,5 +1,7 @@
 from discord import Embed, Color
 import asyncio
+import os, json
+from datetime import datetime, timedelta
 
 
 owner_ids = [301295716066787332]
@@ -454,3 +456,56 @@ class detect:
         if ID is not None:
             user = client.get_user(ID)
         return user
+
+
+class XP_gateway:
+    def __init__(self, path):
+        self.path = path
+    
+    def set_path(self):
+        current_dir = "."
+        for folder in self.path.split("/"):
+            listdir = os.listdir(current_dir)
+            if folder not in listdir:
+                os.mkdir(self.path)
+                break
+            else:
+                current_dir += "/" + folder
+    
+    def bucket_name(self, user_id):
+        bucket = str(user_id >> 22)[:-10]
+        if bucket == "":
+            bucket = "0"
+        return bucket
+
+    def process(self, user_id):
+        now = datetime.utcnow()
+        bname = self.bucket_name(user_id)
+        # In case the file dosen't exist:
+        if f"{bname}.json" not in os.listdir(self.path):
+            open(f"{self.path}/{bname}.json", "w").write("{}")
+        
+        # Loading data
+        with open(f"{self.path}/{bname}.json", "r") as _file:
+            data = json.load(_file)
+        
+        # Checking if the cooldown is passed
+        time_array = data.get(str(user_id))
+        passed = True
+        if time_array is not None:
+            last_time = datetime(*time_array)
+            _delta = timedelta(seconds=10)
+            if now - last_time < _delta:
+                passed = False
+        
+        if passed:
+            data[str(user_id)] = list(now.timetuple())[:6]
+            with open(f"{self.path}/{bname}.json", "w") as _file:
+                json.dump(data, _file)
+            return True
+        else:
+            return False
+        del data
+
+
+# Hey yo eh oh ah!

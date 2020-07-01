@@ -7,8 +7,6 @@ from xlsxwriter import Workbook
 
 import pymongo
 from pymongo import MongoClient
-
-# Logging in
 app_string = str(os.environ.get("cluster_app_string"))
 cluster = MongoClient(app_string)
 db = cluster["guild_data"]
@@ -57,7 +55,7 @@ token = str(os.environ.get("guild_manager_token"))
 default_avatar_url = "https://cdn.discordapp.com/attachments/664230839399481364/677534213418778660/default_image.png"
 
 #========Lists and values=========
-from functions import guild_limit, member_limit, owner_ids, is_command
+from functions import guild_limit, member_limit, owner_ids, is_command, XP_gateway
 
 turned_on_at = datetime.datetime.utcnow()
 
@@ -69,6 +67,12 @@ statuses = {
 }
 
 to_send = []
+
+xp_gateway_path = "XP_buckets"
+# Setting up the XP_gateway
+gw = XP_gateway(xp_gateway_path)
+gw.set_path()
+del gw
 
 #======== Functions ========
 from functions import get_field, find_alias, has_permissions, is_command, Guild
@@ -152,46 +156,6 @@ async def try_send(channel, content=None, embed=None):
     except Exception:
         dm_opened = False
     return dm_opened
-
-class LocalGuildData:
-    def __init__(self, folder_name):
-        self.folder_name = folder_name
-        self.opened_data = None
-
-    def get_bucket(self, guild_id):
-        bucket = str(guild_id >> 22)[:-10]
-        if bucket == "":
-            bucket = "0"
-        return bucket
-
-    def open_for(self, guild_id):
-        bucket = self.get_bucket(guild_id)
-        filename = f"{self.folder_name}_{bucket}.json"
-        if self.folder_name in os.listdir("."):
-            if filename in os.listdir(f"{self.folder_name}"):
-                with open(f"{self.folder_name}/{filename}", "r", encoding="utf8") as fff:
-                    self.opened_data = json.load(fff)
-            else:
-                self.opened_data = {}
-        else:
-            self.opened_data = {}
-    
-    def update(self, guild_id, user_id, value):
-        g, u = str(guild_id), str(user_id)
-        if g not in self.opened_data:
-            self.opened_data[g] = {u: value}
-        else:
-            self.opened_data[g][u] = value
-
-    def save_changes_for(self, guild_id):
-        if self.opened_data is not None:
-            bucket = self.get_bucket(guild_id)
-            filename = f"{self.folder_name}/{self.folder_name}_{bucket}.json"
-            if self.folder_name not in os.listdir("."):
-                os.mkdir(self.folder_name)
-            with open(filename, "w", encoding="utf8") as fff:
-                json.dump(self.opened_data, fff)
-            self.opened_data = None
 
 #======== Events =========
 
@@ -349,7 +313,6 @@ async def bot_stats(ctx):
     total_users = 0
     total_servers = 0
     total_shards = client.shard_count
-
     for server in servers:
         total_users += server.member_count
         total_servers += 1
@@ -514,7 +477,7 @@ async def download(ctx, *, guild_name):
         os.remove(f"Guild_download_{ctx.author.id}.xlsx")
 
 #======== Events ========
-@client.event    # TEMPORARY INACTIVE EVENT
+@client.event
 async def on_message(message):
     # If not direct message
     if message.guild != None:
@@ -532,28 +495,14 @@ async def on_message(message):
 
             await client.process_commands(message)
 
-            # Check cooldown and calculate income
+            # Checking cooldown
             collection = db["subguilds"]
-            now = datetime.datetime.utcnow()
 
-            xpbuf = LocalGuildData("XP_Buckets")
-            xpbuf.open_for(server_id)
-            past = get_field(xpbuf.opened_data, str(server_id), str(user_id))
+            xpbuf = XP_gateway(xp_gateway_path)
+            passed_cd = xpbuf.process(user_id)
             
-            passed_cd = False
-            if past is None:
-                passed_cd = True
-            else:
-                past = dt(past)
-                _10_sec = datetime.timedelta(seconds=10)
-                if now - past >= _10_sec:
-                    passed_cd = True
             
             if passed_cd:
-                xpbuf.update(server_id, user_id, array(now))
-                xpbuf.save_changes_for(server_id)
-
-                # GoT event: temporary "$or" query operator
                 result = collection.find_one(
                     {
                         "_id": server_id, f"subguilds.members.{user_id}": {"$exists": True}
@@ -563,48 +512,40 @@ async def on_message(message):
                 to_ignore = get_field(result, "ignore_chats", default=[])
                 xp_locked = get_field(result, "xp_locked", default=False)
 
+                # Calculating income depending on the leading guild
                 if not xp_locked and channel_id not in to_ignore:
-                    # GoT event: checking where to add XP
-                    if str(user_id) in get_field(result, "night_watch", "members", default=[]):
-                        pass
-                    #     collection.find_one_and_update(
-                    #         {"_id": server_id, f"night_watch.members.{user_id}": {"$exists": True}},
-                    #         {"$inc": {f"night_watch.members.{user_id}": 10}}
-                    #     )
+                    sg_found = False
+                    sg_name = None
+                    S, M = -1, -1
+                    for sg in get_field(result, "subguilds", default=[]):
+                        total_mes = 0
+                        total_memb = 0
+                        for key in sg["members"]:
+                            memb = sg["members"][key]
 
-                    else:
-                        sg_found = False
-                        sg_name = None
-                        S, M = -1, -1
-                        for sg in get_field(result, "subguilds", default=[]):
-                            total_mes = 0
-                            total_memb = 0
-                            for key in sg["members"]:
-                                memb = sg["members"][key]
-
-                                if not sg_found and f"{user_id}" == key:
-                                    sg_found = True
-                                    sg_name = "temporary"
-                                
-                                total_mes += memb["messages"]
-                                total_memb += 1
+                            if not sg_found and f"{user_id}" == key:
+                                sg_found = True
+                                sg_name = "temporary"
                             
-                            if total_mes > S:
-                                S, M = total_mes, total_memb
-                            if sg_name != None and sg_found:
-                                sg_name = None
-                                Si, Mi = total_mes, total_memb
-                            
-                        if sg_found:
-                            income = round(10 * (((M+10) / (Mi+10))**(1/4) * ((S+10) / (Si+10))**(1/2)))
+                            total_mes += memb["messages"]
+                            total_memb += 1
+                        
+                        if total_mes > S:
+                            S, M = total_mes, total_memb
+                        if sg_name != None and sg_found:
+                            sg_name = None
+                            Si, Mi = total_mes, total_memb
+                        
+                    if sg_found:
+                        income = round(10 * (((M+10) / (Mi+10))**(1/4) * ((S+10) / (Si+10))**(1/2)))
 
-                            collection.find_one_and_update(
-                                {
-                                    "_id": server_id,
-                                    f"subguilds.members.{user_id}": {"$exists": True}
-                                },
-                                {"$inc": {f"subguilds.$.members.{user_id}.messages": income}}
-                            )
+                        collection.find_one_and_update(
+                            {
+                                "_id": server_id,
+                                f"subguilds.members.{user_id}": {"$exists": True}
+                            },
+                            {"$inc": {f"subguilds.$.members.{user_id}.messages": income}}
+                        )
         
         # Award with mentions
         if mentioned_members != []:
