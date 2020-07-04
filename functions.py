@@ -23,6 +23,14 @@ def abr(num):
         return str(num)
 
 
+def rem_duplicates(_list):
+    out = []
+    for el in _list:
+        if el not in out:
+            out.append(el)
+    return out
+
+
 def vis_num(number, sep=" ", step=3):
     number = str(number)
     length = len(number)
@@ -140,7 +148,7 @@ def has_any_permission(member, perm_array):
 
 def display_list(array, sep=", ", frame="`"):
     out = ""
-    for element in array:
+    for element in rem_duplicates(array):
         out += f"{frame}{element}{frame}{sep}"
     out = out[:-len(sep)]
     return out if len(out) > 0 else f"{frame}-{frame}"
