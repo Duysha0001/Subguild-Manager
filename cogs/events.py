@@ -63,9 +63,10 @@ async def post_log(guild, channel_id, log):
             await channel.send(embed=log)
 
 class XO_field:
-    def __init__(self):
-        self.matrix = [[0 for j in range(3)] for i in range(3)]
+    def __init__(self, rows=3, columns=3):
+        self.matrix = [[0 for j in range(columns)] for i in range(rows)]
         self.moves = 0
+        self.max_moves = rows * columns
     
     def display(self):
         shapes = [":white_large_square:", ":negative_squared_cross_mark:", ":o2:"]
@@ -78,6 +79,10 @@ class XO_field:
             output += display_line + "\n"
         return output[:-1]
     
+    def get_looser(self):
+        d = self.moves % 2 
+        return 1 if d > 0 else 2
+
     def to_tuple(self, chess_formated):
         digits = [str(i) for i in range(10)]
         row = None
@@ -95,35 +100,36 @@ class XO_field:
     
     def put(self, coords, value):
         if len(coords) >= 2:
-            if "str" in str(type(coords)):
+            if isinstance(coords, str):
                 coords = self.to_tuple(coords)
             if coords is not None and self.matrix[coords[0]][coords[1]] == 0:
                 self.matrix[coords[0]][coords[1]] = value
                 self.moves += 1
     
     def find_winners(self):
-        if self.moves >= 9:
+        lcross, rcross = [], []
+        col_count_1, col_count_2 = [0, 0, 0], [0, 0, 0]
+        for num, row in enumerate(self.matrix):
+            if row.count(1) == 3:
+                return 1
+            elif row.count(2) == 3:
+                return 2
+            for col, v in enumerate(row):
+                if v == 1:
+                    col_count_1[col] += 1
+                elif v == 2:
+                    col_count_2[col] += 1
+            lcross.append(row[num])
+            rcross.append(row[2 - num])
+        
+        if lcross.count(1) == 3 or rcross.count(1) == 3 or 3 in col_count_1:
+            return 1
+        elif lcross.count(2) == 3 or rcross.count(2) == 3 or 3 in col_count_2:
+            return 2
+        elif self.moves >= self.max_moves:
             return 0
         else:
-            lcross, rcross = [], []
-            col_count_1, col_count_2 = [0, 0, 0], [0, 0, 0]
-            for num, row in enumerate(self.matrix):
-                if row.count(1) == 3:
-                    return 1
-                elif row.count(2) == 3:
-                    return 2
-                for col, v in enumerate(row):
-                    if v == 1:
-                        col_count_1[col] += 1
-                    elif v == 2:
-                        col_count_2[col] += 1
-                lcross.append(row[num])
-                rcross.append(row[2 - num])
-            
-            if lcross.count(1) == 3 or rcross.count(1) == 3 or 3 in col_count_1:
-                return 1
-            elif lcross.count(2) == 3 or rcross.count(2) == 3 or 3 in col_count_2:
-                return 2
+            return None
 
 
 class events(commands.Cog):
@@ -314,11 +320,11 @@ class events(commands.Cog):
                         player = players[xo.moves % 2]
                         msg = await read_message(ctx.channel, player, 60, self.client)
                         if msg is None:
-                            winner = (xo.moves + 1) % 2
+                            winner = xo.get_looser()
                         elif "quit" in msg.content.lower():
-                            winner = (xo.moves + 1) % 2
+                            winner = xo.get_looser()
                         elif is_command(msg.content, ctx.prefix, self.client):
-                            winner = (xo.moves + 1) % 2
+                            winner = xo.get_looser()
                         else:
                             xo.put(msg.content.lower(), xo.moves % 2 + 1)
                             winner = xo.find_winners()
