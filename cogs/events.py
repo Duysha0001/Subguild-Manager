@@ -397,11 +397,10 @@ class events(commands.Cog):
                     )
                     game_info.add_field(name="**(:negative_squared_cross_mark:) Первый ходит:**", value=str(ctx.author), inline=False)
                     game_info.add_field(name="**(:o2:) Второй ходит:**", value=str(opponent), inline=False)
-                    await ctx.send(embed=game_info)
 
                     players = (ctx.author, opponent)
                     xo = XO_universal()
-                    screen = await ctx.send(xo.display())
+                    screen = await ctx.send(content=xo.display(), embed=game_info)
                     winner = None
 
                     while winner is None:
@@ -414,14 +413,17 @@ class events(commands.Cog):
                         elif is_command(msg.content, ctx.prefix, self.client):
                             winner = xo.get_looser()
                         else:
+                            prev_moves = xo.moves
                             xo.put(msg.content.lower(), xo.moves % 2 + 1)
-                            winner = xo.find_winners()
-                            await screen.edit(content=xo.display())
 
-                            try:
-                                await msg.delete()
-                            except Exception:
-                                pass
+                            if xo.moves > prev_moves:
+                                winner = xo.find_winners()
+                                await screen.edit(content=xo.display(), embed=game_info)
+
+                                try:
+                                    await msg.delete()
+                                except Exception:
+                                    pass
                     
                     if winner is not None:
                         if winner == 0:
@@ -567,20 +569,21 @@ class events(commands.Cog):
                     await request.delete()
 
                     players = (ctx.author, opponent)
+                    sign = ["❎", ":o2:"]
                     xo = XO_universal(10, 10, 5)
                     winner = None
 
                     game_info = discord.Embed(
                         title="🔰 Раунд",
-                        description=xo.display(),
+                        description=f"**{anf(players[0])}** vs **{anf(players[1])}**\n\n{xo.display()}",
                         color=discord.Color.blue()
                     )
-                    game_info.add_field(name="**(:negative_squared_cross_mark:) Первый ходит:**", value=str(ctx.author), inline=False)
-                    game_info.add_field(name="**(:o2:) Второй ходит:**", value=str(opponent), inline=False)
+                    game_info.add_field(name="**Сейчас ходит:**", value=f"{sign[0]} | {anf(players[0])}")
                     screen = await ctx.send(embed=game_info)
 
                     while winner is None:
-                        player = players[xo.moves % 2]
+                        ipl = xo.moves % 2
+                        player = players[ipl]
                         msg = await read_message(ctx.channel, player, 60, self.client)
                         if msg is None:
                             winner = xo.get_looser()
@@ -589,15 +592,20 @@ class events(commands.Cog):
                         elif is_command(msg.content, ctx.prefix, self.client):
                             winner = xo.get_looser()
                         else:
-                            xo.put(msg.content.lower(), xo.moves % 2 + 1)
-                            winner = xo.find_winners()
-                            game_info.description = xo.display()
-                            await screen.edit(embed=game_info)
+                            prev_moves = xo.moves
+                            xo.put(msg.content.lower(), ipl + 1)
+                            # Check if coords were correct
+                            if xo.moves > prev_moves:
+                                ipl = (ipl + 1) % 2
+                                winner = xo.find_winners()
+                                game_info.description = f"**{anf(players[0])}** vs **{anf(players[1])}**\n\n{xo.display()}"
+                                game_info.set_field_at(0, name="**Сейчас ходит:**", value=f"{sign[ipl]} | {anf(players[ipl])}")
+                                await screen.edit(embed=game_info)
 
-                            try:
-                                await msg.delete()
-                            except Exception:
-                                pass
+                                try:
+                                    await msg.delete()
+                                except Exception:
+                                    pass
                     
                     if winner is not None:
                         if winner == 0:
