@@ -446,22 +446,22 @@ class events(commands.Cog):
                                 winner = xo.get_looser()
                             elif "draw" in msg.content.lower():
                                 notif = discord.Embed(
-                                    title=f"🤝 | {anf(player)} прдлагает ничью",
+                                    title=f"🤝 | {anf(player)} предлагает ничью",
                                     description="Написать `да` - согласиться\nНаписать `нет` - продолжить игру",
                                     color=discord.Color.gold()
                                 )
-                                notif.set_footer(text="У Вас есть 60 секунд, после чего будет засчитано нет")
+                                notif.set_footer(text='У Вас есть 60 секунд, после чего будет засчитано "нет"')
                                 player2 = players[(ipl + 1) % 2]
                                 bot_msg = await ctx.send(content=str(player2.mention), embed=notif)
 
                                 msg2 = await read_message(ctx.channel, player2, 60, self.client)
-                                if msg2 is None or msg2.content.lower() in ["нет", "no"]:
+                                if msg2 is not None and msg2.content.lower() in ["да", "yes"]:
+                                    winner = 0
+                                else:
                                     try:
                                         await bot_msg.delete()
                                     except Exception:
                                         pass
-                                else:
-                                    winner = 0
 
                             elif "quit" in msg.content.lower():
                                 winner = xo.get_looser()
