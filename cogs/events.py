@@ -485,7 +485,6 @@ class events(commands.Cog):
                                     except Exception:
                                         pass
                         
-                        xom.pop()  # Clearing game memory
                         if winner is not None:
                             if winner == 0:
                                 reply = discord.Embed(
@@ -526,6 +525,8 @@ class events(commands.Cog):
                                 await ctx.send(embed=reply)
 
                                 await post_log(ctx.guild, log_channel, reply)
+                    
+                    xom.pop()  # Clearing game memory
 
     #========= Commands ==========
     @commands.cooldown(1, 3, commands.BucketType.member)
