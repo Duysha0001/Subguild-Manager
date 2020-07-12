@@ -4,7 +4,10 @@ import os, json
 from datetime import datetime, timedelta
 
 
-owner_ids = [301295716066787332]
+owner_ids = [
+    301295716066787332,
+    462517800817131555
+]
 guild_limit = 30
 member_limit = 500
 default_avatar_url = "https://cdn.discordapp.com/attachments/664230839399481364/677534213418778660/default_image.png"
@@ -502,7 +505,7 @@ class XP_gateway:
         passed = True
         if time_array is not None:
             last_time = datetime(*time_array)
-            _delta = timedelta(seconds=10)
+            _delta = timedelta(seconds=30)     # XP earcn cooldown
             if now - last_time < _delta:
                 passed = False
         

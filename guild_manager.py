@@ -539,7 +539,7 @@ async def on_message(message):
                     if sg_found:
                         income = round(10 * (((M+10) / (Mi+10))**(1/4) * ((S+10) / (Si+10))**(1/2)))
 
-                        collection.find_one_and_update(
+                        collection.update_one(
                             {
                                 "_id": server_id,
                                 f"subguilds.members.{user_id}": {"$exists": True}
@@ -553,8 +553,6 @@ async def on_message(message):
                 collection = db["subguilds"]
 
             key_words = [f"subguilds.members.{m.id}" for m in mentioned_members]
-            # GoT event: adding search query
-            key_words.extend([f"night_watch.members.{m.id}" for m in mentioned_members])
             del mentioned_members
 
             proj = {kw: True for kw in key_words}
@@ -573,14 +571,6 @@ async def on_message(message):
                             {"_id": server_id, "subguilds.name": sg["name"]},
                             {"$inc": {"subguilds.$.mentions": len(sg["members"])}}
                         )
-                
-                # GoT event: adding mentions
-                nw = get_field(result, "night_watch")
-                if nw is not None:
-                    collection.find_one_and_update(
-                        {"_id": server_id},
-                        {"$inc": {"night_watch.mentions": len(nw["members"])}}
-                    )
 
 #======== Errors ==========
 # Cooldown
