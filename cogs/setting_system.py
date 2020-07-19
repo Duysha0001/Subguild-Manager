@@ -143,7 +143,7 @@ class setting_system(commands.Cog):
 
     @commands.cooldown(1, 10, commands.BucketType.member)
     @commands.command(aliases = ["set-prefix", "setprefix", "sp"])
-    async def prefix(self, ctx, *, text_input):
+    async def prefix(self, ctx, text_input):
         text_input = text_input[:30]
         if not has_permissions(ctx.author, ["administrator"]):
             reply = discord.Embed(
