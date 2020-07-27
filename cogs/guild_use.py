@@ -11,7 +11,7 @@ cluster = MongoClient(app_string)
 db = cluster["guild_data"]
 
 #---------- Variables ------------
-from functions import member_limit
+from functions import member_limit, cool_servers
 
 #---------- My Errors ----------
 class NoSpareGuilds:
@@ -488,7 +488,8 @@ class guild_use(commands.Cog):
             "members": "👥",
             "roles": "🎗",
             "reputation": "🔅",
-            "rating": "🏆"
+            "rating": "🏆",
+            "superpoints": "\\🪐" # BETA
         }
         filter_aliases = {
             "exp": ["xp", "опыт"],
@@ -498,6 +499,10 @@ class guild_use(commands.Cog):
             "reputation": ["репутация"],
             "rating": ["mixed", "рейтинг"]
         }
+        # Adding extra filter
+        if ctx.guild.id in cool_servers:
+            filter_aliases["superpoints"] = ["super-points", "супер-поинты"] # BETA
+        
         filtration = find_alias(filter_aliases, filtration)
 
         result = collection.find_one({"_id": ctx.guild.id})
@@ -515,6 +520,9 @@ class guild_use(commands.Cog):
                     f"> `{pr}top roles`\n"
                 )
             )
+            if ctx.guild.id in cool_servers:
+                reply.description += f"> `{pr}top super-points`"
+            
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
 
@@ -570,6 +578,10 @@ class guild_use(commands.Cog):
             elif filtration == "reputation":
                 desc = "Фильтрация **по репутации**"
                 stats = server.reputation_pairs()
+            
+            elif filtration == "superpoints":
+                desc = "Фильтрация **по супер-поинтам**"
+                stats = server.superpoints_pairs()
             
             del server
             lb = Leaderboard(stats)

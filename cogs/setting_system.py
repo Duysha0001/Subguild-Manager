@@ -12,7 +12,7 @@ cluster = MongoClient(app_string)
 db = cluster["guild_data"]
 
 #---------- Variables ------------
-from functions import member_limit, guild_limit
+from functions import member_limit, guild_limit, cool_servers
 
 #---------- Functions ------------
 from functions import has_permissions, get_field, detect, find_alias, read_message, display_list
@@ -30,11 +30,17 @@ def mmorpg_col(col_name):
     }
     return colors[col_name]
 
+def is_cool_server():
+    def predicate(ctx):
+        return ctx.guild.id in cool_servers
+    return commands.check(predicate)
+
 async def post_log(guild, channel_id, log):
     if channel_id is not None:
         channel = guild.get_channel(channel_id)
         if channel is not None:
             await channel.send(embed=log)
+
 
 class setting_system(commands.Cog):
     def __init__(self, client):
@@ -1139,7 +1145,7 @@ class setting_system(commands.Cog):
                     for sg in result["subguilds"]:
                         zero_data = {}
                         zero_data.update([
-                            (f"subguilds.$.members.{key}", {"id": int(key), "messages": 0}) for key in sg["members"]])
+                            (f"subguilds.$.members.{key}", {"messages": 0}) for key in sg["members"]])
                         if zero_data != {}:
                             collection.find_one_and_update(
                                 {"_id": ctx.guild.id, "subguilds.name": sg["name"]},
@@ -1164,6 +1170,76 @@ class setting_system(commands.Cog):
             lc_id = get_field(result, "log_channel")
             await post_log(ctx.guild, lc_id, log)
 
+
+    @commands.cooldown(1, 10, commands.BucketType.member)
+    @commands.command(aliases = ["smart-reset", "sr"])
+    async def smart_reset(self, ctx):
+        collection = db["subguilds"]
+
+        if not has_permissions(ctx.author, ["administrator"]):
+            reply = discord.Embed(
+                title = "❌ Недостаточно прав",
+                description = (
+                    "Требуемые права:\n"
+                    "> Администратор"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed=reply)
+
+        else:
+            result = collection.find_one(
+                {"_id": ctx.guild.id},
+                projection={
+                    "subguilds.name": True,
+                    "subguilds.members": True,
+                    "log_channel": True
+                }
+            )
+            if result is not None:
+                xp_pairs = []
+                for sg in result["subguilds"]:
+                    zero_data = {}
+                    total_xp = 0
+                    for key in sg["members"]:
+                        total_xp += sg["members"][key]["messages"]
+                        zero_data[f"subguilds.$.members.{key}"] = {"messages": 0}
+
+                    if zero_data != {}:
+                        collection.update_one(
+                            {"_id": ctx.guild.id, "subguilds.name": sg["name"]},
+                            {"$set": zero_data}
+                        )
+                    
+                    xp_pairs.append((sg["name"], total_xp))
+                
+                # Smart-reset test: adding super-points
+                xp_pairs.sort(reverse=True, key=lambda p: p[1])
+                max_points = len(xp_pairs)
+                desc = ""
+                for i, pair in enumerate(xp_pairs):
+                    collection.update_one(
+                        {"_id": ctx.guild.id, "subguilds.name": pair[0]},
+                        {"$inc": {"subguilds.$.superpoints": max_points - i}}
+                    )
+                    desc += f"> {pair[0]}: `+{max_points - i}` \\🪐\n"
+            
+            reply = discord.Embed(
+                title = "♻ Завершено",
+                description = f"Сброс закончен\nНачислены супер-поинты:\n{desc}",
+                color = mmorpg_col("clover")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed=reply)
+
+            log = discord.Embed(
+                title="♻ Сброс опыта и начисление супер-поинтов",
+                description=f"**Модератор:** {ctx.author}\n{desc}"
+            )
+            lc_id = get_field(result, "log_channel")
+            await post_log(ctx.guild, lc_id, log)
+    
     #========== Errors ===========
     @prefix.error
     async def prefix_error(self, ctx, error):

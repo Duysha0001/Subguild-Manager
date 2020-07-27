@@ -8,6 +8,10 @@ owner_ids = [
     301295716066787332,
     462517800817131555
 ]
+cool_servers = [
+    422784396425297930,
+    575770784673300491
+]
 guild_limit = 30
 member_limit = 500
 default_avatar_url = "https://cdn.discordapp.com/attachments/664230839399481364/677534213418778660/default_image.png"
@@ -277,6 +281,7 @@ class Guild:
         self.mentions = get_field(data, "mentions", default=0)
         self.members = get_field(data, "members", default=[])
         self.limit = get_field(data, "limit", default=member_limit)
+        self.superpoints = get_field(data, "superpoints", default=0)
 
     def member_xp(self, ID):
         if not f"{ID}" in self.members:
@@ -389,6 +394,13 @@ class Server:
         for guild in self.guilds:
             g = Guild(guild)
             out.append((g.name, len(g.members)))
+        return out
+
+    def superpoints_pairs(self):
+        out = []
+        for guild in self.guilds:
+            g = Guild(guild)
+            out.append((g.name, g.superpoints))
         return out
 
     def all_member_pairs(self):
