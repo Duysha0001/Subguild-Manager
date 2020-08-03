@@ -275,7 +275,7 @@ class guild_use(commands.Cog):
 
             else:
                 if private and ctx.author.id not in [subguild["leader_id"], subguild["helper_id"]] and not has_permissions(ctx.author, ["administrator"]):
-                    collection.find_one_and_update(
+                    collection.update_one(
                         {"_id": ctx.guild.id, "subguilds.name": guild_name},
                         {"$addToSet": {"subguilds.$.requests": ctx.author.id}},
                         upsert=True
@@ -308,13 +308,13 @@ class guild_use(commands.Cog):
                         self.client.loop.create_task(knock_dm(helper, ctx.channel, log))
 
                 else:
-                    collection.find_one_and_update(
+                    collection.update_one(
                         {"_id": ctx.guild.id, "subguilds.name": guild_name},
                         {
                             "$set": {f"subguilds.$.members.{ctx.author.id}": {"messages": 0}}
                         }
                     )
-                    collection.find_one_and_update(
+                    collection.update_one(
                         {"_id": ctx.guild.id},
                         {"$pull": {"subguilds.$[].requests": {"$in": [ctx.author.id]}}}
                     )
@@ -402,7 +402,7 @@ class guild_use(commands.Cog):
                 await ctx.send("Действие отменено")
 
             elif user_reply in yes:
-                collection.find_one_and_update(
+                collection.update_one(
                     {"_id": ctx.guild.id, "subguilds.name": guild_name},
                     {
                         "$unset": {
@@ -489,7 +489,7 @@ class guild_use(commands.Cog):
             "roles": "🎗",
             "reputation": "🔅",
             "rating": "🏆",
-            "superpoints": "\\🪐" # BETA
+            "superpoints": "🪐" # BETA
         }
         filter_aliases = {
             "exp": ["xp", "опыт"],

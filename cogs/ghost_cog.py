@@ -28,9 +28,9 @@ class ghost_cog(commands.Cog):
     async def call(self, ctx):
         if ctx.author.id in owner_ids:
             # INSERT_START
-
-            await ctx.send("Test 2")
-# INSERT_END
+            async for m in ctx.guild.me.history(limit=10000):
+                print(m.content)
+            # INSERT_END
 
 def setup(client):
     client.add_cog(ghost_cog(client))

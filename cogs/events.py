@@ -106,8 +106,7 @@ class XO_universal:
         if self.moves < 2:
             return 0
         else:
-            d = self.moves % 2
-            return 1 if d > 0 else 2
+            return 1 if self.moves % 2 > 0 else 2
 
     def to_tuple(self, chess_formated):
         # 1 letter is required. Not more and mot less

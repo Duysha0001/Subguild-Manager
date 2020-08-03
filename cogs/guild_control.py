@@ -109,7 +109,7 @@ async def give_join_role(member, role_id):
 
 async def remove_join_role(member, role_id):
     if role_id is not None and member is not None:
-        role = discord.utils.get(member.guild.roles, id=role_id)
+        role = member.guild.get_role(role_id)
         if role is not None and role in member.roles:
             try:
                 await member.remove_roles(role)
@@ -266,7 +266,7 @@ class guild_control(commands.Cog):
                         changes = f"установлена на {int(value)}"
                         to_update = {"$set": update_pair}
                     
-                    collection.find_one_and_update(
+                    collection.update_one(
                         query,
                         to_update,
                         upsert=True
@@ -359,7 +359,7 @@ class guild_control(commands.Cog):
                     await ctx.send(embed = reply)
                 
                 else:
-                    collection.find_one_and_update(
+                    collection.update_one(
                         {"_id": ctx.guild.id},
                         {
                             "$addToSet": {
@@ -683,7 +683,7 @@ class guild_control(commands.Cog):
                         if correct_arg:
                             subguild[parameter] = value
 
-                            collection.find_one_and_update(
+                            collection.update_one(
                                 {"_id": ctx.guild.id, "subguilds.name": guild_name},
                                 {"$set": {f"subguilds.$.{parameter}": value}}
                             )
@@ -741,7 +741,7 @@ class guild_control(commands.Cog):
                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
             else:
-                collection.find_one_and_update(
+                collection.update_one(
                     {"_id": ctx.guild.id, "subguilds.name": guild_name},
                     {
                         "$pull": {
@@ -881,7 +881,7 @@ class guild_control(commands.Cog):
                 
                 #======Remove invalid members======
                 if bad_ids != []:
-                    collection.find_one_and_update(
+                    collection.update_one(
                         {"_id": ctx.guild.id, "subguilds.name": guild_name},
                         {"$pull": {"subguilds.$.requests": {"$in": bad_ids}}}
                     )
@@ -974,11 +974,11 @@ class guild_control(commands.Cog):
                 if num == "all":
                     new_data = {f"subguilds.$.members.{ID}": {"messages": 0} for ID in subguild["requests"]}
 
-                    collection.find_one_and_update(
+                    collection.update_one(
                         {"_id": ctx.guild.id, "subguilds.name": guild_name},
                         {"$set": new_data}
                     )
-                    collection.find_one_and_update(
+                    collection.update_one(
                         {"_id": ctx.guild.id},
                         {"$pull": {"subguilds.$[].requests": {"$in": subguild["requests"]}}},
                     )
@@ -987,11 +987,11 @@ class guild_control(commands.Cog):
                 else:
                     user_id = subguild["requests"][num - 1]
 
-                    collection.find_one_and_update(
+                    collection.update_one(
                         {"_id": ctx.guild.id, "subguilds.name": guild_name},
                         {"$set": {f"subguilds.$.members.{user_id}": {"messages": 0}}}
                     )
-                    collection.find_one_and_update(
+                    collection.update_one(
                         {"_id": ctx.guild.id},
                         {"$pull": {"subguilds.$[].requests": {"$in": [user_id]}}},
                     )
@@ -1101,7 +1101,7 @@ class guild_control(commands.Cog):
             
             if correct_args:
                 if num == "all":
-                    collection.find_one_and_update(
+                    collection.update_one(
                         {"_id": ctx.guild.id, "subguilds.name": guild_name},
                         {"$pull": {"subguilds.$.requests": {"$in": subguild["requests"]}}}
                     )
@@ -1110,7 +1110,7 @@ class guild_control(commands.Cog):
                     user_id = id_list[num-1]
                     to_pull.append(user_id)
 
-                    collection.find_one_and_update(
+                    collection.update_one(
                         {"_id": ctx.guild.id, "subguilds.name": guild_name},
                         {
                             "$pull": {"subguilds.$.requests": {"$in": to_pull}}
@@ -1128,7 +1128,7 @@ class guild_control(commands.Cog):
 
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command()
-    async def kick(self, ctx, parameter, value = None, *, search = None):
+    async def kick(self, ctx, param, value = None, *, search = None):
         pr = ctx.prefix
         param_aliases = {
             "user": ["участник", "member", "пользователь"],
@@ -1153,14 +1153,14 @@ class guild_control(commands.Cog):
                 "info": "Кикнуть сколько-то последних участников"
             }
         }
-        parameter = find_alias(param_aliases, parameter)
+        parameter = find_alias(param_aliases, param)
         if parameter is None:
             desc = ""
-            for param in params:
-                desc += f"> `{param}`\n"
+            for _param in params:
+                desc += f"> `{_param}`\n"
             reply = discord.Embed(
                 title = "❌ Неверный параметр",
-                description = f"Вы ввели: `{parameter}`\nДоступные параметры:\n{desc}",
+                description = f"Вы ввели: `{param}`\nДоступные параметры:\n{desc}",
                 color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
@@ -1183,8 +1183,9 @@ class guild_control(commands.Cog):
             result = collection.find_one(
                 {"_id": ctx.guild.id},
                 projection={
-                    "subguilds.members": False,
-                    "subguilds.description": False
+                    "subguilds.description": False,
+                    "subguilds.requests": False,
+                    "ignore_chats": False
                 }
             )
             guild_name = await search_and_choose(get_field(result, "subguilds"), search, ctx.message, ctx.prefix, self.client)
@@ -1264,13 +1265,15 @@ class guild_control(commands.Cog):
                     await ctx.send(embed = reply)
                 
                 elif parameter == "under":
-                    if not value.isdigit() or "-" in value:
+                    if not value.isdigit():
                         reply = discord.Embed(
                             title = "💢 Упс",
                             description = f"Планка сообщений должна быть целым положительным числом\nВы ввели: {value}",
                             color = mmorpg_col("vinous")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                        await ctx.send(embed=reply)
+
                     else:
                         value = int(value)
 
@@ -1287,7 +1290,7 @@ class guild_control(commands.Cog):
                         to_unset.update([(f"subguilds.$.members.{ID}", "") for ID in holder])
                         
                         if to_unset != {}:
-                            collection.find_one_and_update(
+                            collection.update_one(
                                 {"_id": ctx.guild.id, "subguilds.name": guild_name},
                                 {"$unset": to_unset}
                             )
@@ -1297,21 +1300,22 @@ class guild_control(commands.Cog):
                             color = mmorpg_col("clover")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                        await ctx.send(embed=reply)
 
                         if subguild["role_id"] != None:
                             for ID in holder:
                                 self.client.loop.create_task(remove_join_role(ctx.guild.get_member(ID), subguild["role_id"]))
-                    
-                    await ctx.send(embed = reply)
 
                 elif parameter == "last":
-                    if not value.isdigit() or "-" in value:
+                    if not value.isdigit():
                         reply = discord.Embed(
                             title = "💢 Упс",
                             description = f"Кол-во участников должно быть целым положительным числом\nВы ввели: {value}",
                             color = mmorpg_col("vinous")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                        await ctx.send(embed = reply)
+
                     else:
                         value = int(value)
 
@@ -1329,13 +1333,13 @@ class guild_control(commands.Cog):
                         length = len(pairs)
                         segment = min(value, length)
 
-                        pairs = pairs[length - segment: length]
+                        pairs = pairs[length - segment:length]
 
                         to_unset = {}
                         to_unset.update([(f"subguilds.$.members.{pair[0]}", "") for pair in pairs])
                         
                         if to_unset != {}:
-                            collection.find_one_and_update(
+                            collection.update_one(
                                 {"_id": ctx.guild.id, "subguilds.name": guild_name},
                                 {"$unset": to_unset}
                             )
@@ -1345,13 +1349,12 @@ class guild_control(commands.Cog):
                             color = mmorpg_col("clover")
                         )
                         reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                        await ctx.send(embed = reply)
 
                         if subguild["role_id"] != None:
                             for pair in pairs:
                                 ID = pair[0]
                                 self.client.loop.create_task(remove_join_role(ctx.guild.get_member(ID), subguild["role_id"]))
-                    
-                    await ctx.send(embed = reply)
 
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases=["add-xp", "change-xp"])

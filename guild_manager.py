@@ -170,7 +170,7 @@ async def on_ready():
 @client.event
 async def on_member_remove(member):
     collection = db["subguilds"]
-    collection.find_one_and_update(
+    collection.update_one(
         {"_id": member.guild.id, f"subguilds.members.{member.id}": {"$exists": True}},
         {
             "$unset": {f"subguilds.$.members.{member.id}": ""},
@@ -567,7 +567,7 @@ async def on_message(message):
                 subguilds = get_field(result, "subguilds", default=[])
                 for sg in subguilds:
                     if sg["members"] != {}:
-                        collection.find_one_and_update(
+                        collection.update_one(
                             {"_id": server_id, "subguilds.name": sg["name"]},
                             {"$inc": {"subguilds.$.mentions": len(sg["members"])}}
                         )
@@ -591,6 +591,12 @@ async def on_command_error(ctx, error):
                 description = f"Осталось {TimeExpand(int(error.retry_after))}"
             )
         await ctx.send(embed=cool_notify)
+    
+    if isinstance(error, commands.CommandNotFound):
+        pass
+
+    else:
+        print(f">-> {datetime.datetime.utcnow() + datetime.timedelta(hours=3)} | {error}")
 
 @download.error
 async def download_error(ctx, error):

@@ -165,7 +165,7 @@ class setting_system(commands.Cog):
         
         else:
             collection = db["cmd_channels"]
-            collection.find_one_and_update(
+            collection.update_one(
                 {"_id": ctx.guild.id},
                 {"$set": {"prefix": text_input}},
                 upsert=True
@@ -197,7 +197,7 @@ class setting_system(commands.Cog):
             await ctx.send(embed = reply)
         
         elif "delete" in raw_ch[0].lower():
-            collection.find_one_and_update(
+            collection.update_one(
                 {"_id": ctx.guild.id},
                 {
                     "$set": {"channels": None}
@@ -236,7 +236,7 @@ class setting_system(commands.Cog):
 
             else:
                 channel_ids = channel_ids[:+30]
-                collection.find_one_and_update(
+                collection.update_one(
                     {"_id": ctx.guild.id},
                     {
                         "$set": {"channels": channel_ids}
@@ -276,7 +276,7 @@ class setting_system(commands.Cog):
             await ctx.send(embed = reply)
         
         elif "delete" in raw_ch[0].lower():
-            collection.find_one_and_update(
+            collection.update_one(
                 {"_id": ctx.guild.id},
                 {
                     "$unset": {"ignore_chats": ""}
@@ -315,7 +315,7 @@ class setting_system(commands.Cog):
             else:
                 channel_ids = channel_ids[:+30]
 
-                collection.find_one_and_update(
+                collection.update_one(
                     {"_id": ctx.guild.id},
                     {
                         "$set": {"ignore_chats": channel_ids}
@@ -485,7 +485,7 @@ class setting_system(commands.Cog):
         
         elif channel_s.lower() == "delete":
             collection = db["subguilds"]
-            collection.find_one_and_update(
+            collection.update_one(
                 {"_id": ctx.guild.id},
                 {"$unset": {"log_channel": ""}}
             )
@@ -511,7 +511,7 @@ class setting_system(commands.Cog):
         
         else:
             collection = db["subguilds"]
-            collection.find_one_and_update(
+            collection.update_one(
                 {"_id": ctx.guild.id},
                 {"$set": {"log_channel": channel.id}},
                 upsert=True
@@ -564,7 +564,7 @@ class setting_system(commands.Cog):
             collection = db["subguilds"]
             lim = int(lim)
 
-            collection.find_one_and_update(
+            collection.update_one(
                 {"_id": ctx.guild.id},
                 {"$set": {"member_limit": lim}},
                 upsert=True
@@ -615,7 +615,7 @@ class setting_system(commands.Cog):
             collection = db["subguilds"]
             lim = int(lim)
 
-            collection.find_one_and_update(
+            collection.update_one(
                 {"_id": ctx.guild.id},
                 {"$set": {"guild_limit": lim}},
                 upsert=True
@@ -798,7 +798,7 @@ class setting_system(commands.Cog):
                         await ctx.send(embed=reply)
 
                     else:
-                        collection.find_one_and_update(
+                        collection.update_one(
                             {"_id": ctx.guild.id},
                             {"$addToSet": {"master_roles": role.id}},
                             upsert=True
@@ -813,7 +813,7 @@ class setting_system(commands.Cog):
 
                 else:
                     if role_s.lower() == "all":
-                        collection.find_one_and_update(
+                        collection.update_one(
                             {"_id": ctx.guild.id},
                             {"$unset": {"master_roles": ""}}
                         )
@@ -844,7 +844,7 @@ class setting_system(commands.Cog):
                         await ctx.send(embed=reply)
 
                     else:
-                        collection.find_one_and_update(
+                        collection.update_one(
                             {"_id": ctx.guild.id},
                             {"$pull": {"master_roles": {"$in": [role.id]}}},
                             upsert=True
@@ -959,7 +959,7 @@ class setting_system(commands.Cog):
                         await ctx.send(embed=reply)
 
                     else:
-                        collection.find_one_and_update(
+                        collection.update_one(
                             {"_id": ctx.guild.id},
                             {"$addToSet": {"creator_roles": role.id}},
                             upsert=True
@@ -974,7 +974,7 @@ class setting_system(commands.Cog):
 
                 else:
                     if role_s.lower() == "all":
-                        collection.find_one_and_update(
+                        collection.update_one(
                             {"_id": ctx.guild.id},
                             {"$unset": {"creator_roles": ""}}
                         )
@@ -1005,7 +1005,7 @@ class setting_system(commands.Cog):
                         await ctx.send(embed=reply)
 
                     else:
-                        collection.find_one_and_update(
+                        collection.update_one(
                             {"_id": ctx.guild.id},
                             {"$pull": {"creator_roles": {"$in": [role.id]}}},
                             upsert=True
@@ -1036,7 +1036,7 @@ class setting_system(commands.Cog):
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
         
         elif u_search.lower() == "delete":
-            collection.find_one_and_update(
+            collection.update_one(
                 {"_id": ctx.guild.id},
                 {
                     "$set": {
@@ -1059,7 +1059,7 @@ class setting_system(commands.Cog):
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
 
         else:
-            collection.find_one_and_update(
+            collection.update_one(
                 {"_id": ctx.guild.id},
                 {
                     "$set": {
@@ -1147,7 +1147,7 @@ class setting_system(commands.Cog):
                         zero_data.update([
                             (f"subguilds.$.members.{key}", {"messages": 0}) for key in sg["members"]])
                         if zero_data != {}:
-                            collection.find_one_and_update(
+                            collection.update_one(
                                 {"_id": ctx.guild.id, "subguilds.name": sg["name"]},
                                 {"$set": zero_data}
                             )
@@ -1173,7 +1173,7 @@ class setting_system(commands.Cog):
 
     @commands.cooldown(1, 10, commands.BucketType.member)
     @commands.command(aliases = ["smart-reset", "sr"])
-    async def smart_reset(self, ctx):
+    async def smart_reset(self, ctx, param=None, times=None, hours=None):
         collection = db["subguilds"]
 
         if not has_permissions(ctx.author, ["administrator"]):
@@ -1223,7 +1223,7 @@ class setting_system(commands.Cog):
                         {"_id": ctx.guild.id, "subguilds.name": pair[0]},
                         {"$inc": {"subguilds.$.superpoints": max_points - i}}
                     )
-                    desc += f"> {pair[0]}: `+{max_points - i}` \\🪐\n"
+                    desc += f"> {pair[0]}: `+{max_points - i}` 🪐\n"
             
             reply = discord.Embed(
                 title = "♻ Завершено",
