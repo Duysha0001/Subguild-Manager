@@ -525,7 +525,7 @@ class events(commands.Cog):
 
                                 await post_log(ctx.guild, log_channel, reply)
                     
-                    xom.pop()  # Clearing game memory
+                xom.pop()  # Clearing game memory
 
     #========= Commands ==========
     @commands.cooldown(1, 3, commands.BucketType.member)
