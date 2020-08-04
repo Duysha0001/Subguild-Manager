@@ -356,16 +356,26 @@ class guild_use(commands.Cog):
                 "_id": ctx.guild.id,
                 f"subguilds.members.{ctx.author.id}": {"$exists": True}
             },
-            projection={"subguilds.name": True, "subguilds.members": True, "subguilds.role_id": True}
+            projection={"subguilds.name": True, "subguilds.members": True, "subguilds.role_id": True, "block_leave": True}
         )
         if result is None:
             reply = discord.Embed(
                 title = "❌ Ошибка",
-                description = f"Вас нет ни в одной гильдии",
+                description = "Вас нет ни в одной гильдии",
                 color = mmorpg_col("vinous")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
+        
+        elif result.get("block_leave", False) and not has_permissions(ctx.author, ["administrator"]):
+            reply = discord.Embed(
+                title = "🔒 Выход невозможен",
+                description = "Администрация сервера запретила выход из гильдий.",
+                color = discord.Color.gold()
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
         else:
             subguild = get_subguild(result, ctx.author.id)
             guild_name = subguild["name"]
