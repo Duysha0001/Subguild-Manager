@@ -1419,7 +1419,7 @@ class setting_system(commands.Cog):
             description=(
                 f"**Циклов осталось:** {timer.cycles}\n"
                 f"**Интервал:** (в часах) {timer.interval.total_seconds() // 3600}\n"
-                f"**Ближайшее обнуление:** {timer.next_at}\n"
+                f"**Ближайшее обнуление:** {timer.next_at + datetime.timedelta(hours=3)} (UTC+3)\n"
             ),
             color=discord.Color.greyple()
         )
