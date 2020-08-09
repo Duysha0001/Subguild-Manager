@@ -12,7 +12,7 @@ cluster = MongoClient(app_string)
 db = cluster["guild_data"]
 
 #---------- Variables ------------
-from functions import member_limit, guild_limit, cool_servers
+from functions import member_limit, guild_limit, cool_servers, owner_ids
 
 #---------- Functions ------------
 from functions import has_permissions, get_field, detect, find_alias, read_message, display_list
@@ -35,11 +35,110 @@ def is_cool_server():
         return ctx.guild.id in cool_servers
     return commands.check(predicate)
 
+def is_developer():
+    def predicate(ctx):
+        return ctx.author.id in owner_ids
+    return commands.check(predicate)
+
 async def post_log(guild, channel_id, log):
     if channel_id is not None:
         channel = guild.get_channel(channel_id)
         if channel is not None:
             await channel.send(embed=log)
+
+async def do_smart_reset(server: int):     # BETA
+    collection = db["subguilds"]
+    result = collection.find_one(
+        {"_id": server.id},
+        projection={
+            "subguilds.name": True,
+            "subguilds.members": True,
+            "log_channel": True
+        }
+    )
+    if result is not None:
+        xp_pairs = []
+        for sg in result["subguilds"]:
+            zero_data = {}
+            total_xp = 0
+            for key in sg["members"]:
+                total_xp += sg["members"][key]["messages"]
+                zero_data[f"subguilds.$.members.{key}"] = {"messages": 0}
+
+            if zero_data != {}:
+                collection.update_one(
+                    {"_id": server.id, "subguilds.name": sg["name"]},
+                    {"$set": zero_data}
+                )
+            
+            xp_pairs.append((sg["name"], total_xp))
+        
+        # Smart-reset test: adding super-points
+        xp_pairs.sort(reverse=True, key=lambda p: p[1])
+        max_points = len(xp_pairs)
+        desc = ""
+        for i, pair in enumerate(xp_pairs):
+            collection.update_one(
+                {"_id": server.id, "subguilds.name": pair[0]},
+                {"$inc": {"subguilds.$.superpoints": max_points - i}}
+            )
+            desc += f"> {pair[0]}: `+{max_points - i}` 🪐\n"
+
+    log = discord.Embed(
+        title="♻ Сброс опыта и начисление супер-поинтов",
+        description=f"Проведён автоматически\n{desc}"
+    )
+    lc_id = get_field(result, "log_channel")
+    await post_log(server, lc_id, log)
+
+class Timer:
+    def __init__(self, server_id: int, data: dict=None):
+        self.id = server_id
+        if data is None:
+            collection = db["timers"]
+            data = collection.find_one({"_id": self.id, "cycles": {"$gt": 0}})
+            if data is None:
+                data = {}
+        now = datetime.datetime.utcnow()
+        self.cycles = data.get("cycles", 1)
+        self.interval = datetime.timedelta(hours=data.get("interval", 24))
+        self.last_at = data.get("last_at", now - self.interval)
+        self.next_at = self.last_at + self.interval
+    
+    @property
+    def time_remaining(self):
+        now = datetime.datetime.utcnow()
+        return datetime.timedelta(seconds=0) if now >= self.next_at else self.next_at - now
+    
+    def update(self):
+        collection = db["timers"]
+        collection.update_one(
+            {"_id": self.id, "cycles": {"$gt": 0}},
+            {"$set": {"last_at": self.next_at, "cycles": self.cycles - 1}}
+        )
+        self.cycles -= 1
+        self.last_at, self.next_at = self.next_at, self.next_at + self.interval
+    
+    def save(self):
+        collection = db["timers"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$set": {
+                "cycles": self.cycles,
+                "interval": self.interval.total_seconds() // 3600,
+                "last_at": self.last_at
+            }},
+            upsert=True
+        )
+    
+    def delete(self):
+        collection = db["timers"]
+        collection.delete_one({"_id": self.id})
+
+class TimerList:
+    def __init__(self):
+        collection = db["timers"]
+        self.timers = [ Timer(data.get("_id"), data) for data in collection.find() ]
 
 
 class setting_system(commands.Cog):
@@ -50,6 +149,27 @@ class setting_system(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         print(">> Setting system cog is loaded")
+
+        async def my_task(timer: Timer):
+            while timer.cycles > 0:
+                await asyncio.sleep(timer.time_remaining.total_seconds())
+                try:
+                    server = self.client.get_guild(timer.id)
+                except Exception:
+                    server = None
+                if server is None:
+                    break
+                else:
+                    await do_smart_reset(server)
+                    del server
+                timer.update()
+            timer.delete()
+            return
+        
+        tl = TimerList()
+        for timer in tl.timers:
+            self.client.loop.create_task(my_task(timer))
+        print("--> Launched timers")
     
     #---------- Commands ----------
     @commands.cooldown(1, 5, commands.BucketType.member)
@@ -1242,11 +1362,10 @@ class setting_system(commands.Cog):
             await post_log(ctx.guild, lc_id, log)
 
 
-    @commands.cooldown(1, 10, commands.BucketType.member)
+    @commands.cooldown(1, 3, commands.BucketType.member)
+    @is_developer()
     @commands.command(aliases = ["smart-reset", "sr"])
-    async def smart_reset(self, ctx, param=None, times=None, hours=None):
-        collection = db["subguilds"]
-
+    async def smart_reset(self, ctx, cycles: int=1, hours: int=1):
         if not has_permissions(ctx.author, ["administrator"]):
             reply = discord.Embed(
                 title = "❌ Недостаточно прав",
@@ -1260,57 +1379,54 @@ class setting_system(commands.Cog):
             await ctx.send(embed=reply)
 
         else:
-            result = collection.find_one(
-                {"_id": ctx.guild.id},
-                projection={
-                    "subguilds.name": True,
-                    "subguilds.members": True,
-                    "log_channel": True
-                }
-            )
-            if result is not None:
-                xp_pairs = []
-                for sg in result["subguilds"]:
-                    zero_data = {}
-                    total_xp = 0
-                    for key in sg["members"]:
-                        total_xp += sg["members"][key]["messages"]
-                        zero_data[f"subguilds.$.members.{key}"] = {"messages": 0}
-
-                    if zero_data != {}:
-                        collection.update_one(
-                            {"_id": ctx.guild.id, "subguilds.name": sg["name"]},
-                            {"$set": zero_data}
-                        )
-                    
-                    xp_pairs.append((sg["name"], total_xp))
-                
-                # Smart-reset test: adding super-points
-                xp_pairs.sort(reverse=True, key=lambda p: p[1])
-                max_points = len(xp_pairs)
-                desc = ""
-                for i, pair in enumerate(xp_pairs):
-                    collection.update_one(
-                        {"_id": ctx.guild.id, "subguilds.name": pair[0]},
-                        {"$inc": {"subguilds.$.superpoints": max_points - i}}
-                    )
-                    desc += f"> {pair[0]}: `+{max_points - i}` 🪐\n"
+            if cycles < 1:
+                cycles = 1
+            if hours < 1:
+                hours = 1
+            timer_data = {
+                "cycles": cycles,
+                "interval": hours,
+                "last_at": datetime.datetime.utcnow()
+            }
+            timer = Timer(ctx.guild.id, timer_data)
+            timer.save()
             
             reply = discord.Embed(
-                title = "♻ Завершено",
-                description = f"Сброс закончен\nНачислены супер-поинты:\n{desc}",
+                title = "🕑 Таймер запущен",
+                description = (
+                    f"Сброс очков будет проходить **{cycles}** раз с перерывами по **{hours}** часов\n"
+                    f"**Следующее обнуление:** `{timer.next_at + datetime.timedelta(hours=3)}  (UTC+3)`"
+                ),
                 color = mmorpg_col("clover")
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
 
-            log = discord.Embed(
-                title="♻ Сброс опыта и начисление супер-поинтов",
-                description=f"**Модератор:** {ctx.author}\n{desc}"
-            )
-            lc_id = get_field(result, "log_channel")
-            await post_log(ctx.guild, lc_id, log)
+            while timer.cycles > 0:
+                await asyncio.sleep(timer.time_remaining.total_seconds())
+                await do_smart_reset(ctx.guild)
+                timer.update()
+            timer.delete()
+
     
+    @commands.cooldown(1, 3, commands.BucketType.member)
+    @is_developer()
+    @commands.command(aliases = ["smart-reset-status", "srs"])
+    async def smart_reset_status(self, ctx):
+        timer = Timer(ctx.guild.id)
+        reply = discord.Embed(
+            title="🕑 Статус авто обнуления",
+            description=(
+                f"**Циклов осталось:** {timer.cycles}\n"
+                f"**Интервал:** (в часах) {timer.interval.total_seconds() // 3600}\n"
+                f"**Ближайшее обнуление:** {timer.next_at}\n"
+            ),
+            color=discord.Color.greyple()
+        )
+        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+        await ctx.send(embed=reply)
+
+
     #========== Errors ===========
     @prefix.error
     async def prefix_error(self, ctx, error):
