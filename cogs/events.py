@@ -423,6 +423,7 @@ class events(commands.Cog):
                     else:
                         await request.delete()
 
+                        draws = {ctx.author.id: 2, opponent.id: 2}
                         players = (ctx.author, opponent)
                         sign = ["❎", ":o2:"]
                         xo = XO_universal(*xou_args)
@@ -440,27 +441,37 @@ class events(commands.Cog):
                         while winner is None:
                             ipl = xo.moves % 2
                             player = players[ipl]
-                            msg = await read_message(ctx.channel, player, 60, self.client)
+                            def check(m):
+                                return (m.author.id == player.id and m.channel.id == ctx.channel.id and
+                                not ("draw" in m.content.lower() and draws[m.author.id] <= 0))
+                            msg = 1337
+                            try:
+                                msg = self.client.wait_for("message", check=check, timeout=60)
+                            except asyncio.TimeoutError:
+                                msg = None
                             if msg is None:
                                 winner = xo.get_looser()
                             elif "draw" in msg.content.lower():
-                                notif = discord.Embed(
-                                    title=f"🤝 | {anf(player)} предлагает ничью",
-                                    description="Написать `да` - согласиться\nНаписать `нет` - продолжить игру",
-                                    color=discord.Color.gold()
-                                )
-                                notif.set_footer(text='У Вас есть 60 секунд, после чего будет засчитано "нет"')
-                                player2 = players[(ipl + 1) % 2]
-                                bot_msg = await ctx.send(content=str(player2.mention), embed=notif)
-
-                                msg2 = await read_message(ctx.channel, player2, 60, self.client)
-                                if msg2 is not None and msg2.content.lower() in ["да", "yes"]:
-                                    winner = 0
+                                if draws[player.id] < 1:
+                                    await ctx.send(f"{player.mention}, вы больше не можете предлагать ничью.")
                                 else:
-                                    try:
-                                        await bot_msg.delete()
-                                    except Exception:
-                                        pass
+                                    notif = discord.Embed(
+                                        title=f"🤝 | {anf(player)} предлагает ничью",
+                                        description="Написать `да` - согласиться\nНаписать `нет` - продолжить игру",
+                                        color=discord.Color.gold()
+                                    )
+                                    notif.set_footer(text='У Вас есть 60 секунд, после чего будет засчитано "нет"')
+                                    player2 = players[(ipl + 1) % 2]
+                                    bot_msg = await ctx.send(content=str(player2.mention), embed=notif)
+                                    draws[player.id] -= 1
+                                    msg2 = await read_message(ctx.channel, player2, 60, self.client)
+                                    if msg2 is not None and msg2.content.lower() in ["да", "yes"]:
+                                        winner = 0
+                                    else:
+                                        try:
+                                            await bot_msg.delete()
+                                        except Exception:
+                                            pass
 
                             elif "quit" in msg.content.lower():
                                 winner = xo.get_looser()
