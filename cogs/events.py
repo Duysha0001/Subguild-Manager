@@ -446,7 +446,7 @@ class events(commands.Cog):
                                 not ("draw" in m.content.lower() and draws[m.author.id] <= 0))
                             msg = 1337
                             try:
-                                msg = self.client.wait_for("message", check=check, timeout=60)
+                                msg = await self.client.wait_for("message", check=check, timeout=60)
                             except asyncio.TimeoutError:
                                 msg = None
                             if msg is None:
