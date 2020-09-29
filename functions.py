@@ -118,7 +118,7 @@ def has_roles(member, role_array):
     if not has_permissions(member, ["administrator"]):
         owned_role_ids = [r.id for r in member.roles]
         for role in role_array:
-            if "int" in f"{type(role)}".lower():
+            if isinstance(role, int):
                 role_id = role
             else:
                 role_id = role.id

@@ -206,6 +206,7 @@ class setting_system(commands.Cog):
         xp_locked = get_field(result, "xp_locked", default=False)
         join_filter = get_field(result, "auto_join", default=False)
         leave_blocker = get_field(result, "block_leave", default=False)
+        creator_lim = get_field(result, "creator_limit", default=g_lim_desc)
 
         if igch is None:
             ig_desc = "> Отсутствуют\n"
@@ -266,6 +267,7 @@ class setting_system(commands.Cog):
         reply.add_field(name="**Вести подсчёт упоминаний от**", value=f"{ping_desc}", inline=False)
         reply.add_field(name="**Лимит гильдий на сервере**", value=f"> {g_lim_desc}")
         reply.add_field(name="**Лимит пользователей на гильдию**", value=f"> {lim_desc}")
+        reply.add_field(name="**Лимит создаваемых одним человеком гильдий**", value=f"> {creator_lim}", inline=False)
         reply.add_field(name="**Блокировка опыта**", value=f"> {xpl_desc}")
         reply.add_field(name="**Авто вход в гильдии**", value=f"> {aj_desc}")
         reply.add_field(name="**Запрет на выход из гильдий**", value=f"> {lb_desc}")
@@ -1210,6 +1212,58 @@ class setting_system(commands.Cog):
                         await ctx.send(embed=reply)
     
     @commands.cooldown(1, 5, commands.BucketType.member)
+    @commands.command(aliases = ["creator-limit", "crelim"])
+    async def creator_limit(self, ctx, lim):
+        pr = ctx.prefix
+        if not has_permissions(ctx.author, ["administrator"]):
+            reply = discord.Embed(
+                title = "💢 Недостаточно прав",
+                description = (
+                    "Требуемые права:\n"
+                    "> Администратор"
+                ),
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        elif not lim.isdigit():
+            reply = discord.Embed(
+                title = "💢 Неверный аргумент",
+                description = f"Аргумент {lim} должен быть целым положительным числом",
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        elif int(lim) > guild_limit:
+            reply = discord.Embed(
+                title = "❌ Ошибка",
+                description = f"Ограничение создаваемых участником кланов не может превышать **{guild_limit}**",
+                color = mmorpg_col("vinous")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        else:
+            collection = db["subguilds"]
+            lim = int(lim)
+
+            collection.update_one(
+                {"_id": ctx.guild.id},
+                {"$set": {"creator_limit": lim}},
+                upsert=True
+            )
+            reply = discord.Embed(
+                title = "✅ Настроено",
+                description = (
+                    f"Текущее ограничение количества создаваемых участником кланов: **{lim}**\n"
+                    f"❗Не распространяется на администрацию и обладателей мастер-роли\n"
+                    f"Отчёт о настройках: `{pr}settings`"
+                ),
+                color = mmorpg_col("clover")
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+    @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases = ["ping-count", "pingcount", "pc"])
     async def ping_count(self, ctx, u_search):
         collection = db["subguilds"]
@@ -1650,6 +1704,24 @@ class setting_system(commands.Cog):
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
+
+    @creator_limit.error
+    async def creator_limit_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            p = ctx.prefix
+            cmd = ctx.command.name
+            reply = discord.Embed(
+                title = f"❓ Об аргументах `{p}{cmd}`",
+                description = (
+                    "**Описание:** устанавливает ограничение количества создаваемых одним человеком кланов. Не касается администрации и обладателей мастер-роли.\n"
+                    f"**Использование:** `{p}{cmd} Число`\n"
+                    f"**Пример:** `{p}{cmd} 5`\n\n"
+                    f"**Синонимы:** {display_list(ctx.command.aliases)}"
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
 
 def setup(client):
     client.add_cog(setting_system(client))

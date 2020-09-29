@@ -15,7 +15,7 @@ db = cluster["guild_data"]
 from functions import guild_limit, default_avatar_url, member_limit
 
 #---------- Functions ------------
-from functions import has_any_roles, has_permissions, get_field, detect, find_alias, carve_int, search_and_choose, display_list
+from functions import has_any_roles, has_permissions, get_field, detect, find_alias, carve_int, search_and_choose, display_list, has_roles
 
 # Other
 def anf(user):
@@ -304,17 +304,20 @@ class guild_control(commands.Cog):
             projection={
                 "_id": True,
                 "subguilds.name": True,
+                "subguilds.leader_id": True,
                 "master_roles": True,
                 "creator_roles": True,
                 "log_channel": True,
-                "guild_limit": True
+                "guild_limit": True,
+                "creator_limit": True
             }
         )
         g_lim = get_field(result, "guild_limit", default=guild_limit)
+        crealim = min(get_field(result, "creator_limit", default=g_lim), g_lim)
         lc_id = get_field(result, "log_channel")
-        req_roles = get_field(result, "master_roles", default=[])
+        mr_ids = get_field(result, "master_roles", default=[])
         cr_ids = get_field(result, "creator_roles", default=[])
-        req_roles.extend(cr_ids)
+        req_roles = [*mr_ids, *cr_ids]
 
         if not has_any_roles(ctx.author, req_roles):
             reply = discord.Embed(
@@ -333,10 +336,26 @@ class guild_control(commands.Cog):
         
         else:
             total_guilds = 0
+            created_by_author = 0
             if result != None and "subguilds" in result:
-                total_guilds = len(result["subguilds"])
+                for sg in result["subguilds"]:
+                    total_guilds += 1
+                    if ctx.author.id == sg["leader_id"]:
+                        created_by_author += 1
 
-            if total_guilds >= g_lim:
+            if has_any_roles(ctx.author, cr_ids) and not has_roles(ctx.author, mr_ids) and created_by_author >= crealim and not has_permissions(ctx.author, ["administrator"]):
+                reply = discord.Embed(
+                    title = "🛠 Вы владеете максимальным разрешённым кол-вом гильдий",
+                    description = (
+                        f"Максимум гильдий, которыми может владеть 1 участник: {crealim}\n"
+                        f"Удалить гильдию: `{pr}delete-guild Гильдия`"
+                    ),
+                    color = discord.Color.dark_orange()
+                )
+                reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+                await ctx.send(embed = reply)
+
+            elif total_guilds >= g_lim:
                 reply = discord.Embed(
                     title = "🛠 Максимум гильдий",
                     description = (
