@@ -375,7 +375,7 @@ async def bot_stats(ctx):
     reply.add_field(name="🛰 **Пинг**", value=f"> {client.latency * 1000:.0f}", inline=False)
     reply.add_field(name="🌐 **Аптайм**", value=f"> {delta_desc}", inline=False)
     if ctx.author.id in owner_ids:
-        reply.add_field(name="💻 **Потрачено времени на логин**", value=f"> `{now - logged_in_at}`", inline=False)
+        reply.add_field(name="💻 **Потрачено времени на логин**", value=f"> `{logged_in_at - turned_on_at}`", inline=False)
     reply.add_field(name="🛠 **Разработчик**", value=f"{dev_desc}\nБлагодарность:\n> VernonRoshe")
     reply.add_field(name="🔗 **Ссылки**", value=link_desc)
 
