@@ -4,6 +4,5 @@ asyncio
 XlsxWriter
 pymongo
 dnspython
-memory_profiler
 Pymoe
 pip
