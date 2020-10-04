@@ -4,7 +4,7 @@ from discord.ext.commands import Bot
 import asyncio
 import os, json, datetime
 from xlsxwriter import Workbook
-from memory_profiler import memory_usage
+# from memory_profiler import memory_usage
 
 import pymongo
 from pymongo import MongoClient
@@ -296,7 +296,7 @@ async def execute(ctx, *, text):
             client.reload_extension("cogs.ghost_cog")
             await ctx.send("```>>> Ghost cog updated```")
 
-
+"""
 @commands.cooldown(1, 5, commands.BucketType.member)
 @commands.is_owner()
 @client.command(aliases = ["view-memory"])
@@ -308,7 +308,7 @@ async def view_memory(ctx):
         color=discord.Color.blurple()
     )
     await ctx.send(embed=reply)
-
+"""
 
 @client.command()
 async def status(ctx, *, text):
