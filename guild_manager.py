@@ -4,6 +4,7 @@ from discord.ext.commands import Bot
 import asyncio
 import os, json, datetime
 from xlsxwriter import Workbook
+from memory_profiler import memory_usage
 
 import pymongo
 from pymongo import MongoClient
@@ -19,7 +20,10 @@ async def get_prefix(client, message):
         {"_id": message.guild.id}
     )
     prefix = get_field(result, "prefix", default=default_prefix)
-    if is_command(message.content, prefix, client):
+    if client.user.id == 582881093154504734:
+        return ".."
+    
+    elif is_command(message.content, prefix, client):
         cmd_channels_ids = get_field(result, "channels")
         if cmd_channels_ids is None:
             cmd_channels_ids = [message.channel.id]
@@ -58,6 +62,7 @@ default_avatar_url = "https://cdn.discordapp.com/attachments/664230839399481364/
 from functions import guild_limit, member_limit, owner_ids, is_command, XP_gateway
 
 turned_on_at = datetime.datetime.utcnow()
+logged_in_at = None
 
 statuses = {
     "dnd": discord.Status.dnd,
@@ -161,6 +166,8 @@ async def try_send(channel, content=None, embed=None):
 
 @client.event
 async def on_ready():
+    global logged_in_at
+    logged_in_at = datetime.datetime.utcnow()
     print(
         ">> Bot is ready\n"
         f">> Bot user: {client.user}\n"
@@ -289,6 +296,20 @@ async def execute(ctx, *, text):
             client.reload_extension("cogs.ghost_cog")
             await ctx.send("```>>> Ghost cog updated```")
 
+
+@commands.cooldown(1, 5, commands.BucketType.member)
+@commands.is_owner()
+@client.command(aliases = ["view-memory"])
+async def view_memory(ctx):
+    mb = memory_usage()
+    reply = discord.Embed(
+        title="💾 | Расход оперативной памяти",
+        description=f"Около **{mb[0]}** Мб",
+        color=discord.Color.blurple()
+    )
+    await ctx.send(embed=reply)
+
+
 @client.command()
 async def status(ctx, *, text):
     if ctx.author.id in owner_ids:
@@ -353,6 +374,8 @@ async def bot_stats(ctx):
     reply.add_field(name="👥 **Всего пользователей**", value=f"> {total_users}", inline=False)
     reply.add_field(name="🛰 **Пинг**", value=f"> {client.latency * 1000:.0f}", inline=False)
     reply.add_field(name="🌐 **Аптайм**", value=f"> {delta_desc}", inline=False)
+    if ctx.author.id in owner_ids:
+        reply.add_field(name="💻 **Потрачено времени на логин**", value=f"> `{now - logged_in_at}`", inline=False)
     reply.add_field(name="🛠 **Разработчик**", value=f"{dev_desc}\nБлагодарность:\n> VernonRoshe")
     reply.add_field(name="🔗 **Ссылки**", value=link_desc)
 
@@ -592,9 +615,12 @@ async def on_command_error(ctx, error):
             )
         await ctx.send(embed=cool_notify)
     
-    if isinstance(error, commands.CommandNotFound):
+    elif isinstance(error, commands.CommandNotFound):
         pass
-
+    
+    elif isinstance(error, commands.MissingRequiredArgument):
+        pass
+    
     else:
         print(f">-> {datetime.datetime.utcnow() + datetime.timedelta(hours=3)} | {error}")
 
