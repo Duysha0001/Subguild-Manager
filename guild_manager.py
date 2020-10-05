@@ -52,6 +52,8 @@ async def get_prefix(client, message):
     else:
         return " _"
 
+intents = discord.Intents.default()
+intents.members = True
 client = commands.AutoShardedBot(command_prefix=get_prefix)
 client.remove_command("help")
 
