@@ -54,7 +54,7 @@ async def get_prefix(client, message):
 
 intents = discord.Intents.default()
 intents.members = True
-client = commands.AutoShardedBot(command_prefix=get_prefix)
+client = commands.AutoShardedBot(command_prefix=get_prefix, intents=intents)
 client.remove_command("help")
 
 token = str(os.environ.get("guild_manager_token"))
