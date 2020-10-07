@@ -377,7 +377,11 @@ async def bot_stats(ctx):
     reply.add_field(name="🛰 **Пинг**", value=f"> {client.latency * 1000:.0f}", inline=False)
     reply.add_field(name="🌐 **Аптайм**", value=f"> {delta_desc}", inline=False)
     if ctx.author.id in owner_ids:
-        reply.add_field(name="💻 **Потрачено времени на логин**", value=f"> `{logged_in_at - turned_on_at}`", inline=False)
+        if logged_in_at is None:
+            value = "logging in..."
+        else:
+            value = str(logged_in_at - turned_on_at)
+        reply.add_field(name="💻 **Потрачено времени на логин**", value=f"> `{value}`", inline=False)
     reply.add_field(name="🛠 **Разработчик**", value=f"{dev_desc}\nБлагодарность:\n> VernonRoshe")
     reply.add_field(name="🔗 **Ссылки**", value=link_desc)
 
@@ -510,7 +514,7 @@ async def on_message(message):
         user_id = message.author.id
         server_id = message.guild.id
         channel_id = message.channel.id
-        mentioned_members = message.mentions
+        mentioned_members = [m.id for m in message.mentions]
 
         if not message.author.bot:
             if message.content in [f"<@!{client.user.id}>", f"<@{client.user.id}>"]:
@@ -519,6 +523,7 @@ async def on_message(message):
                 await message.channel.send(f"Мой префикс: `{result.get('prefix', default_prefix)}`")
 
             await client.process_commands(message)
+            del message
 
             # Checking cooldown
             collection = db["subguilds"]
@@ -577,16 +582,17 @@ async def on_message(message):
             if collection is None:
                 collection = db["subguilds"]
 
-            key_words = [f"subguilds.members.{m.id}" for m in mentioned_members]
+            key_words = [f"subguilds.members.{ID}" for ID in mentioned_members]
             del mentioned_members
 
             proj = {kw: True for kw in key_words}
-            proj.update([("subguilds.name", True)])
+            proj["subguilds.name"] = True
 
             result = collection.find_one(
                 {"_id": server_id, "mentioner_id": user_id},
                 projection=proj
             )
+            del proj
             
             if result is not None:
                 subguilds = get_field(result, "subguilds", default=[])
