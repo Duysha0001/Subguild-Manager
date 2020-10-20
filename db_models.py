@@ -250,7 +250,7 @@ class Server:
         self.id = _id
         if not dont_request_bd:
             collection = db["subguilds"]
-            result = collection.find_one({"_id": self.id, **extra_query}, projection=None)
+            result = collection.find_one({"_id": self.id, **extra_query}, projection=projection)
             if result is None:
                 result = {}
                 self.no_data_found = True

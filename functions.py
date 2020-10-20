@@ -92,7 +92,10 @@ def find_alias(dict_of_aliases, search):
 def is_command(text, prefix, client):
     cmds = client.commands
     del client
-    _1st_word = text.split(maxsplit=1)[0]
+    _1st_word = text.split(maxsplit=1)
+    if len(_1st_word) < 1:
+        return False
+    _1st_word = _1st_word[0]
     if _1st_word.startswith(prefix):
         _1st_word = _1st_word[len(prefix):]
         for cmd in cmds:
