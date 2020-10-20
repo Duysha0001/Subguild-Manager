@@ -2,22 +2,22 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
 import asyncio, os, datetime
+import json
 
-import pymongo
-from pymongo import MongoClient
 
-app_string = str(os.environ.get("cluster_app_string"))
-cluster = MongoClient(app_string)
-db = cluster["guild_data"]
-
-import os, json
-
-#---------- Variables ------------
+#----------------------------+
+#         Constatns          |
+#----------------------------+
 xo_award = 1
 xol_award = 3
 
-#---------- Functions ------------
-from functions import has_permissions, detect, get_field, Leaderboard, read_message, trigger_reaction, is_command
+
+#----------------------------+
+#         Functions          |
+#----------------------------+
+from functions import Leaderboard, read_message, trigger_reaction, is_command
+from db_models import Server
+
 
 def mmorpg_col(col_name):
     colors = {
@@ -31,6 +31,7 @@ def mmorpg_col(col_name):
     }
     return colors[col_name]
 
+
 def anf(user):
     line = f"{user}"
     fsymbs = ">`*_~|"
@@ -41,6 +42,7 @@ def anf(user):
         else:
             out += s
     return out
+
 
 def isnested(section, array):
     i = 0; v = 0; res = False
@@ -57,22 +59,6 @@ def isnested(section, array):
         i += 1
     return res
 
-def get_subguild(collection_part, subguild_sign):
-    out = None
-    if collection_part != None and "subguilds" in collection_part:
-        user_id_given = "int" in f"{type(subguild_sign)}".lower()
-
-        subguilds = collection_part["subguilds"]
-        for subguild in subguilds:
-            if user_id_given:
-                if f"{subguild_sign}" in subguild["members"]:
-                    out = subguild
-                    break
-            else:
-                if subguild["name"] == subguild_sign:
-                    out = subguild
-                    break
-    return out
 
 async def post_log(guild, channel_id, log):
     if channel_id is not None:
@@ -290,14 +276,18 @@ class events(commands.Cog):
     def __init__(self, client):
         self.client = client
 
-    #========== Events ===========
+    #----------------------------+
+    #           Events           |
+    #----------------------------+
     @commands.Cog.listener()
     async def on_ready(self):
         print(">> Events cog is loaded")
         xom = XO_Memory()
         xom.reset_path()
     
-    #========= Command-like functions==========
+    #----------------------------+
+    #       Class methods        |
+    #----------------------------+
     async def xo_organizer(self, ctx, string, xou_args=[3, 3, 3]):
         mode_desc = f"{xou_args[0]}x{xou_args[1]}"
         if xou_args[0] < 10:
@@ -306,19 +296,10 @@ class events(commands.Cog):
             xoaward = xol_award
         
         p = ctx.prefix
-        opponent = detect.member(ctx.guild, string)
-        if opponent is None:
+        opponent = await commands.MemberConverter().convert(ctx, string)
+        if opponent.id == ctx.author.id:
             reply = discord.Embed(
-                title="💢 Упс",
-                description=f"Не могу найти пользователя по запросу **{string}**",
-                color=mmorpg_col("vinous")
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-
-        elif opponent.id == ctx.author.id:
-            reply = discord.Embed(
-                title="❓ С собой играть нельзя",
+                title="❓ | С собой играть нельзя",
                 description="Найдите себе соперника, с собой Вы не поиграете, увы.",
                 color=mmorpg_col("vinous")
             )
@@ -326,30 +307,19 @@ class events(commands.Cog):
             await ctx.send(embed = reply)
         
         else:
-            collection = db["subguilds"]
-            result = collection.find_one(
-                {"_id": ctx.guild.id},
-                projection={
+            sconf = Server(ctx.guild.id, {
                     f"subguilds.members.{opponent.id}": True,
                     f"subguilds.members.{ctx.author.id}": True,
                     "subguilds.name": True,
                     "games_allowed": True,
-                    "log_channel": True
-                }
-            )
-            auth_guild = get_subguild(result, ctx.author.id)
-            oppo_guild = get_subguild(result, opponent.id)
-            games_allowed = get_field(result, "games_allowed", default=False)
-            log_channel = get_field(result, "log_channel")
-            guild_names = {
-                ctx.author.id: get_field(auth_guild, "name"),
-                opponent.id: get_field(oppo_guild, "name")
-            }
-            del result
+                    "log_channel": True })
+            auth_guild = sconf.get_guild(ctx.author.id)
+            oppo_guild = sconf.get_guild(opponent.id)
+            sconf.__guilds = []
 
-            if not games_allowed:
+            if not sconf.games_allowed:
                 reply = discord.Embed(
-                    title="❌ На этом сервере ивент выключен",
+                    title="❌ | На этом сервере ивент выключен",
                     description=f"Включить: `{p}enable-event`",
                     color=mmorpg_col("vinous")
                 )
@@ -372,9 +342,9 @@ class events(commands.Cog):
                 reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
                 await ctx.send(embed = reply)
             
-            elif auth_guild == oppo_guild:
+            elif auth_guild.name == oppo_guild.name:
                 reply = discord.Embed(
-                    title="❌ Ошибка",
+                    title="❌ | Ошибка",
                     description="Противник должен быть из другой гильдии",
                     color=mmorpg_col("vinous")
                 )
@@ -382,6 +352,12 @@ class events(commands.Cog):
                 await ctx.send(embed = reply)
 
             else:
+                guild_map = {
+                    ctx.author.id: auth_guild,
+                    opponent.id: oppo_guild
+                }
+                del auth_guild, oppo_guild
+
                 xom = XO_Memory(ctx.author, opponent)  # Prepairing game memory
                 _id = xom.save()   #Trying to save the game
                 free = False
@@ -423,7 +399,6 @@ class events(commands.Cog):
                     else:
                         await request.delete()
 
-                        draws = {ctx.author.id: 2, opponent.id: 2}
                         players = (ctx.author, opponent)
                         sign = ["❎", ":o2:"]
                         xo = XO_universal(*xou_args)
@@ -441,37 +416,27 @@ class events(commands.Cog):
                         while winner is None:
                             ipl = xo.moves % 2
                             player = players[ipl]
-                            def check(m):
-                                return (m.author.id == player.id and m.channel.id == ctx.channel.id and
-                                not ("draw" in m.content.lower() and draws[m.author.id] <= 0))
-                            msg = 1337
-                            try:
-                                msg = await self.client.wait_for("message", check=check, timeout=60)
-                            except asyncio.TimeoutError:
-                                msg = None
+                            msg = await read_message(ctx.channel, player, 60, self.client)
                             if msg is None:
                                 winner = xo.get_looser()
                             elif "draw" in msg.content.lower():
-                                if draws[player.id] < 1:
-                                    await ctx.send(f"{player.mention}, вы больше не можете предлагать ничью.")
+                                notif = discord.Embed(
+                                    title=f"🤝 | {anf(player)} предлагает ничью",
+                                    description="Написать `да` - согласиться\nНаписать `нет` - продолжить игру",
+                                    color=discord.Color.gold()
+                                )
+                                notif.set_footer(text='У Вас есть 60 секунд, после чего будет засчитано "нет"')
+                                player2 = players[(ipl + 1) % 2]
+                                bot_msg = await ctx.send(content=str(player2.mention), embed=notif)
+
+                                msg2 = await read_message(ctx.channel, player2, 60, self.client)
+                                if msg2 is not None and msg2.content.lower() in ["да", "yes"]:
+                                    winner = 0
                                 else:
-                                    notif = discord.Embed(
-                                        title=f"🤝 | {anf(player)} предлагает ничью",
-                                        description="Написать `да` - согласиться\nНаписать `нет` - продолжить игру",
-                                        color=discord.Color.gold()
-                                    )
-                                    notif.set_footer(text='У Вас есть 60 секунд, после чего будет засчитано "нет"')
-                                    player2 = players[(ipl + 1) % 2]
-                                    bot_msg = await ctx.send(content=str(player2.mention), embed=notif)
-                                    draws[player.id] -= 1
-                                    msg2 = await read_message(ctx.channel, player2, 60, self.client)
-                                    if msg2 is not None and msg2.content.lower() in ["да", "yes"]:
-                                        winner = 0
-                                    else:
-                                        try:
-                                            await bot_msg.delete()
-                                        except Exception:
-                                            pass
+                                    try:
+                                        await bot_msg.delete()
+                                    except Exception:
+                                        pass
 
                             elif "quit" in msg.content.lower():
                                 winner = xo.get_looser()
@@ -509,122 +474,71 @@ class events(commands.Cog):
                                 looser = players[winner % 2]
                                 winner = players[winner - 1]
 
-                                collection.update_one(
-                                    {
-                                        "_id": ctx.guild.id,
-                                        "subguilds.name": guild_names[looser.id],
-                                        f"subguilds.members.{looser.id}": {"$exists": True}
-                                    },
-                                    {"$inc": {f"subguilds.$.reputation": -xoaward}}
-                                )
-                                collection.update_one(
-                                    {
-                                        "_id": ctx.guild.id,
-                                        "subguilds.name": guild_names[winner.id],
-                                        f"subguilds.members.{winner.id}": {"$exists": True}
-                                    },
-                                    {"$inc": {f"subguilds.$.reputation": xoaward}}
-                                )
-
+                                guild_map[looser.id].add_reputation(-xoaward)
+                                guild_map[winner.id].add_reputation(xoaward)
+                                
                                 reply = discord.Embed(
                                     title=f"🏆 | {mode_desc} | Выиграл {winner}",
                                     color=discord.Color.gold()
                                 )
-                                reply.add_field(name="**Игрок 1**", value=f"+{xoaward} 🔅 | {anf(winner)}\nГильдия: {guild_names[winner.id]}")
-                                reply.add_field(name="**Игрок 2**", value=f"-{xoaward} 🔅 | {anf(looser)}\nГильдия: {guild_names[looser.id]}")
+                                reply.add_field(name="**Игрок 1**", value=f"+{xoaward} 🔅 | {anf(winner)}\nГильдия: {guild_map[winner.id].name}")
+                                reply.add_field(name="**Игрок 2**", value=f"-{xoaward} 🔅 | {anf(looser)}\nГильдия: {guild_map[looser.id].name}")
                                 await ctx.send(embed=reply)
 
-                                await post_log(ctx.guild, log_channel, reply)
+                                await post_log(ctx.guild, sconf.log_channel, reply)
                     
                 xom.pop()  # Clearing game memory
 
-    #========= Commands ==========
+    #----------------------------+
+    #          Commands          |
+    #----------------------------+
     @commands.cooldown(1, 3, commands.BucketType.member)
+    @commands.has_permissions(administrator=True)
     @commands.command(aliases=["enable-event", "ee"])
     async def enable(self, ctx):
-        if not has_permissions(ctx.author, ["administrator"]):
-            reply = discord.Embed(
-                title = "💢 Недостаточно прав",
-                description = (
-                    "Требуемые права:\n"
-                    "> Администратор"
-                ),
-                color = mmorpg_col("vinous")
-            )
-            reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
-            await ctx.send(embed = reply)
-        
-        else:
-            collection = db["subguilds"]
-            collection.update_one(
-                {"_id": ctx.guild.id},
-                {"$set": {"games_allowed": True}},
-                upsert=True
-            )
-            reply = discord.Embed(
-                title="✅ Выполнено",
-                description="Теперь ивент активен на сервере",
-                color=mmorpg_col("clover")
-            )
-            reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
-            await ctx.send(embed = reply)
+        Server(ctx.guild.id, dont_request_bd=True).allow_games(True)
+        reply = discord.Embed(
+            title="✅ | Выполнено",
+            description="Теперь ивент активен на сервере",
+            color=mmorpg_col("clover")
+        )
+        reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
+        await ctx.send(embed = reply)
+
 
     @commands.cooldown(1, 3, commands.BucketType.member)
+    @commands.has_permissions(administrator=True)
     @commands.command(aliases=["disable-event", "de"])
     async def disable(self, ctx):
-        if not has_permissions(ctx.author, ["administrator"]):
-            reply = discord.Embed(
-                title = "💢 Недостаточно прав",
-                description = (
-                    "Требуемые права:\n"
-                    "> Администратор"
-                ),
-                color = mmorpg_col("vinous")
-            )
-            reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
-            await ctx.send(embed = reply)
-        
-        else:
-            collection = db["subguilds"]
-            collection.update_one(
-                {"_id": ctx.guild.id},
-                {"$set": {"games_allowed": False}},
-                upsert=True
-            )
-            reply = discord.Embed(
-                title="✅ Выполнено",
-                description="Ивент выключен",
-                color=mmorpg_col("clover")
-            )
-            reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
-            await ctx.send(embed = reply)
+        Server(ctx.guild.id, dont_request_bd=True).allow_games(False)
+        reply = discord.Embed(
+            title="✅ Выполнено",
+            description="Ивент выключен",
+            color=mmorpg_col("clover")
+        )
+        reply.set_footer(text = str(ctx.author), icon_url = str(ctx.author.avatar_url))
+        await ctx.send(embed = reply)
+
 
     @commands.cooldown(1, 3, commands.BucketType.member)
-    @commands.command(aliases=["ttt", "XO", "tic-tac-toe"])
+    @commands.command(
+        aliases=["ttt", "XO", "tic-tac-toe"],
+        description="начинает игру в крестики-нолики.",
+        usage="Участник",
+        brief="@User#1234" )
     async def xo(self, ctx, *, string):
         await self.xo_organizer(ctx, string)
 
+
     @commands.cooldown(1, 3, commands.BucketType.member)
-    @commands.command(aliases=["xo-large", "xol", "xo-big"])
+    @commands.command(
+        aliases=["xo-large", "xol", "xo-big"],
+        description="начинает игру в крестики-нолики 10x10.",
+        usage="Участник",
+        brief="@User#1234" )
     async def xo_large(self, ctx, *, string):
         await self.xo_organizer(ctx, string, [10, 10, 5])
 
-    #======= Errors ========
-    @xo.error
-    async def exile_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    "**Описание:** начинает игру в крестики-нолики\n"
-                    f"**Использование:** `{p}{cmd} @Участник`\n"
-                    f"**Пример:** `{p}{cmd} @User#1234`"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
 
 def setup(client):
     client.add_cog(events(client))

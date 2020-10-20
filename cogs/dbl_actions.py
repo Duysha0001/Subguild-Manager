@@ -3,35 +3,41 @@ import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import Bot
 import asyncio
-
 import json, os, datetime
 
-import pymongo
-from pymongo import MongoClient
 
+#----------------------------+
+#        Connections         |
+#----------------------------+
 dbl_token = str(os.environ.get("dbl_token"))
-app_string = str(os.environ.get("cluster_app_string"))
-cluster = MongoClient(app_string)
-db = cluster["guild_data"]
 
-#------- Variables --------
 
+#----------------------------+
+#         Constants          |
+#----------------------------+
 vote_reward = 1
 
-#------- Functions --------
-from functions import get_field
+
+#----------------------------+
+#         Functions          |
+#----------------------------+
+from db_models import Server
+
 
 def array(date_time):
     return list(date_time.timetuple())[:-3]
 
+
 def dt(array):
     return datetime.datetime(*array)
+
 
 async def post_log(guild, channel_id, log):
     if channel_id is not None:
         channel = guild.get_channel(channel_id)
         if channel is not None:
             await channel.send(embed=log)
+
 
 class LocalGuildData:
     def __init__(self, folder_name):
@@ -73,16 +79,19 @@ class LocalGuildData:
                 json.dump(self.opened_data, fff)
             self.opened_data = None
 
+
 class dbl_actions(commands.Cog):
     def __init__(self, client):
         self.client = client
         self.token = dbl_token
 
+
     def cog_unload(self):
         self.update_stats.cancel()
 
-    #-------- Tasks --------
-
+    #----------------------------+
+    #            Loop            |
+    #----------------------------+
     @tasks.loop(minutes=30.0)
     async def update_stats(self):
         try:
@@ -91,7 +100,9 @@ class dbl_actions(commands.Cog):
         except Exception as e:
             print(f"Failed to update stats due to exception: {e}")
     
-    #--------- Events ---------
+    #----------------------------+
+    #           Events           |
+    #----------------------------+
     @commands.Cog.listener()
     async def on_ready(self):
         print(">> DBL cog is loaded")
@@ -99,7 +110,9 @@ class dbl_actions(commands.Cog):
         # print("--> Logged in DBL")
         self.update_stats.start()
     
-    #------- Commands -------
+    #----------------------------+
+    #          Commands          |
+    #----------------------------+
     @commands.cooldown(1, 30, commands.BucketType.member)
     @commands.command(aliases=["i-voted", "I-voted", "iv", "claim-vote"])
     async def i_voted(self, ctx):
@@ -109,7 +122,7 @@ class dbl_actions(commands.Cog):
 
         memory = LocalGuildData("DBL_votes")
         memory.open_for(ctx.guild.id)
-        last_time = get_field(memory.opened_data, str(ctx.guild.id), str(ctx.author.id))
+        last_time = memory.opened_data.get(str(ctx.guild.id), {}).get(str(ctx.author.id))
         can_go = True
 
         if last_time is None:
@@ -143,20 +156,13 @@ class dbl_actions(commands.Cog):
                     await ctx.send(embed=reply)
 
                 else:
-                    collection = db["subguilds"]
-                    result = collection.find_one_and_update(
-                        {"_id": ctx.guild.id, f"subguilds.members.{ctx.author.id}": {"$exists": True}},
-                        {"$inc": {"subguilds.$.reputation": vote_reward}},
-                        projection={
-                            "_id": True,
-                            "log_channel": True,
-                            f"subguilds.members.{ctx.author.id}": True,
-                            "subguilds.name": True
-                        }
-                    )
-                    if result is None:
+                    sconf = Server(ctx.guild.id,
+                    {"log_channel": True, f"subguilds.members.{ctx.author.id}": True, "subguilds.name": True},
+                    {f"subguilds.members.{ctx.author.id}": {"$exists": True}})
+
+                    if sconf.guild_count < 1:
                         reply = discord.Embed(
-                            title="🔎 Вы не в гильдии",
+                            title="🔎 | Вы не в гильдии",
                             description=(
                                 f"Ваш голос засчитан, но Вас нет в гильдии и я не могу начислить {vote_reward} репутации.\n"
                                 f"Зайти в гильдию: `{pr}join-guild Название`"
@@ -166,15 +172,12 @@ class dbl_actions(commands.Cog):
                         await ctx.send(embed=reply)
                     
                     else:
-                        guild_name = None
-                        for sg in get_field(result, "subguilds", default=[]):
-                            if f"{ctx.author.id}" in sg["members"]:
-                                guild_name = sg["name"]
-                                break
+                        g = sconf.get_guild(ctx.author.id)
+                        g.add_reputation(vote_reward)
                         
                         reply = discord.Embed(
                             title="💛 Спасибо за воут!",
-                            description=f"Вашей гильдии ({guild_name}) добавлено {vote_reward} очко репутации, но это не последний раз! Приходите через 12 часов :)",
+                            description=f"Вашей гильдии ({g.name}) добавлено {vote_reward} очко репутации, но это не последний раз! Приходите через 12 часов :)",
                             color=discord.Color.gold()
                         )
                         reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
@@ -184,22 +187,17 @@ class dbl_actions(commands.Cog):
                         memory.update(ctx.guild.id, ctx.author.id, array(now))
                         memory.save_changes_for(ctx.guild.id)
 
-                        g_name = None
-                        for sg in result["subguilds"]:
-                            if get_field(sg, "members", f"{ctx.author.id}") is not None:
-                                g_name = sg["name"]
-                                break
                         log = discord.Embed(
                             title="🎁 Подарочная репутация",
                             description=(
                                 f"**Пользователь:** {ctx.author}\n"
-                                f"**Гильдия:** {g_name}\n"
+                                f"**Гильдия:** {g.name}\n"
                                 f"**Кол-во:** {vote_reward}"
                             ),
                             color=discord.Color.gold()
                         )
-                        lc_id = get_field(result, "log_channel")
-                        await post_log(ctx.guild, lc_id, log)
+                        await post_log(ctx.guild, sconf.log_channel, log)
+
 
 def setup(client):
     client.add_cog(dbl_actions(client))

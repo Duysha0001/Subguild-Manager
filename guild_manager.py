@@ -6,62 +6,47 @@ import os, json, datetime
 from xlsxwriter import Workbook
 from memory_profiler import memory_usage
 
-import pymongo
-from pymongo import MongoClient
-app_string = str(os.environ.get("cluster_app_string"))
-cluster = MongoClient(app_string)
-db = cluster["guild_data"]
-
-default_prefix = "."
 
 async def get_prefix(client, message):
-    collection = db["cmd_channels"]
-    result = collection.find_one(
-        {"_id": message.guild.id}
-    )
-    prefix = get_field(result, "prefix", default=default_prefix)
-    if client.user.id == 582881093154504734:
-        return ".."
-    
-    elif is_command(message.content, prefix, client):
-        cmd_channels_ids = get_field(result, "channels")
-        if cmd_channels_ids is None:
-            cmd_channels_ids = [message.channel.id]
-        else:
-            server_channel_ids = [c.id for c in message.guild.text_channels]
-            channels_exist = False
-            for _id in cmd_channels_ids:
-                if _id in server_channel_ids:
-                    channels_exist = True
-                    break
-            if not channels_exist:
-                cmd_channels_ids = [message.channel.id]
+    if message.guild is not None:
+        if client.user.id == 582881093154504734:
+            return ".."
+        # In case it's not test bot:
+        pconf = ResponseConfig(message.guild.id)
+        if pconf.cmd_channels == []:
+            return pconf.prefix
+        author = message.author
+        channel = message.channel
+        iscmd = is_command(message.content, pconf.prefix, client)
+        del message, client
+        if channel.id not in pconf.cmd_channels and iscmd:
+            if author.guild_permissions.administrator:
+                return pconf.prefix
+            reply = discord.Embed(color=discord.Color.gold())
+            reply.title = "⚠ | Канал"
+            reply.description = "Для использования команд, пожалуйста, пишите в другом канале."
+            reply.set_footer(text=str(author), icon_url=author.avatar_url)
+            await channel.send(embed=reply)
+            return " "
+        return pconf.prefix
+    return " "
 
-        if message.channel.id not in cmd_channels_ids and not has_permissions(message.author, ["administrator"]):
-            reply = discord.Embed(
-                title="⚠ Канал",
-                description="Пожалуйста, используйте команды в другом канале.",
-                color=discord.Color.gold()
-            )
-            reply.set_footer(text = f"{message.author}", icon_url=f"{message.author.avatar_url}")
-            await message.channel.send(embed=reply, delete_after=5)
-            return " _"
-        else:
-            return prefix
-    
-    else:
-        return " _"
 
+#----------------------------+
+#        Connecting          |
+#----------------------------+
 intents = discord.Intents.default()
 intents.members = True
 client = commands.AutoShardedBot(command_prefix=get_prefix, intents=intents)
 client.remove_command("help")
 
 token = str(os.environ.get("guild_manager_token"))
-default_avatar_url = "https://cdn.discordapp.com/attachments/664230839399481364/677534213418778660/default_image.png"
 
-#========Lists and values=========
-from functions import guild_limit, member_limit, owner_ids, is_command, XP_gateway
+#----------------------------+
+#         Constants          |
+#----------------------------+
+from functions import owner_ids, XP_gateway, display_perms, EmergencyExit
+
 
 turned_on_at = datetime.datetime.utcnow()
 logged_in_at = None
@@ -81,36 +66,13 @@ gw = XP_gateway(xp_gateway_path)
 gw.set_path()
 del gw
 
-#======== Functions ========
-from functions import get_field, find_alias, has_permissions, is_command, Guild
+#----------------------------+
+#         Functions          |
+#----------------------------+
+from functions import find_alias, is_command, anf
+from db_models import ResponseConfig, Server, Guild, default_prefix
+from custom_converters import IsNotInt, IsNotSubguild
 
-def get_subguild(collection_part, subguild_sign):
-    out = None
-    if collection_part != None and "subguilds" in collection_part:
-        user_id_given = "int" in f"{type(subguild_sign)}".lower()
-
-        subguilds = collection_part["subguilds"]
-        for subguild in subguilds:
-            if user_id_given:
-                if f"{subguild_sign}" in subguild["members"]:
-                    out = subguild
-                    break
-            else:
-                if subguild["name"] == subguild_sign:
-                    out = subguild
-                    break
-    return out
-
-def anf(user):
-    line = f"{user}"
-    fsymbs = ">`*_~|"
-    out = ""
-    for s in line:
-        if s in fsymbs:
-            out += f"\\{s}"
-        else:
-            out += s
-    return out
 
 def mmorpg_col(col_name):
     colors = {
@@ -124,6 +86,7 @@ def mmorpg_col(col_name):
     }
     return colors[col_name]
 
+
 def first_allowed_channel(guild):
     out = None
     for channel in guild.text_channels:
@@ -133,15 +96,19 @@ def first_allowed_channel(guild):
             break
     return out
 
+
 def array(date_time):
     return list(date_time.timetuple())[:-3]
+
 
 def dt(array):
     return datetime.datetime(*array)
 
+
 def add_tabs(text, amount=1):
     text = "\n" + text
     return text.replace("\n", "\n" + amount * "    ")
+
 
 async def send_to_dev(content=None, embed=None):
     dev_server_id = 670679133294034995
@@ -156,6 +123,7 @@ async def send_to_dev(content=None, embed=None):
         if dev_channel is not None:
             await dev_channel.send(content=content, embed=embed)
 
+
 async def try_send(channel, content=None, embed=None):
     dm_opened = True
     try:
@@ -164,7 +132,9 @@ async def try_send(channel, content=None, embed=None):
         dm_opened = False
     return dm_opened
 
-#======== Events =========
+#----------------------------+
+#           Events           |
+#----------------------------+
 
 @client.event
 async def on_ready():
@@ -176,16 +146,6 @@ async def on_ready():
         ">> Loading Cogs...\n"
     )
 
-@client.event
-async def on_member_remove(member):
-    collection = db["subguilds"]
-    collection.update_one(
-        {"_id": member.guild.id, f"subguilds.members.{member.id}": {"$exists": True}},
-        {
-            "$unset": {f"subguilds.$.members.{member.id}": ""},
-            "$pull": {f"subguilds.$.requests": member.id}
-        }
-    )
 
 @client.event
 async def on_guild_join(guild):
@@ -214,7 +174,7 @@ async def on_guild_join(guild):
         else:
             greet_desc = "не было отправлено"
     else:
-        await channel.send(f"{guild.owner.mention}", embed=greet)
+        await channel.send(embed=greet)
         greet_desc = f"отправлено в канал **#{channel.name}**"
     
     log = discord.Embed(
@@ -230,12 +190,11 @@ async def on_guild_join(guild):
     log.set_thumbnail(url=f"{guild.icon_url}")
     await send_to_dev(embed=log)
 
+
 @client.event
 async def on_guild_remove(guild):
-    collection = db["subguilds"]
-    collection.delete_one({"_id": guild.id})
-    collection = db["cmd_channels"]
-    collection.delete_one({"_id": guild.id})
+    Server(guild.id, {"_id": True}).delete()
+    ResponseConfig(guild.id, {"_id": True}).delete()
 
     log = discord.Embed(
         title="💥 Больше нет на сервере",
@@ -249,12 +208,15 @@ async def on_guild_remove(guild):
     log.set_thumbnail(url=f"{guild.icon_url}")
     await send_to_dev(embed=log)
 
-#=========Commands==========
+#----------------------------+
+#          Commands          |
+#----------------------------+
 @client.command()
 async def logout(ctx):
     if ctx.author.id in owner_ids:
         await ctx.send("Logging out...")
         await client.logout()
+
 
 @client.command()
 async def execute(ctx, *, text):
@@ -329,6 +291,7 @@ async def status(ctx, *, text):
         )
         await ctx.send(embed=reply)
 
+
 @commands.cooldown(1, 5, commands.BucketType.member)
 @client.command(aliases = ["bot-stats", "bs"])
 async def bot_stats(ctx):
@@ -380,12 +343,13 @@ async def bot_stats(ctx):
         if logged_in_at is None:
             value = "logging in..."
         else:
-            value = str(logged_in_at - turned_on_at)
+            value = logged_in_at - turned_on_at
         reply.add_field(name="💻 **Потрачено времени на логин**", value=f"> `{value}`", inline=False)
     reply.add_field(name="🛠 **Разработчик**", value=f"{dev_desc}\nБлагодарность:\n> VernonRoshe")
     reply.add_field(name="🔗 **Ссылки**", value=link_desc)
 
     await ctx.send(embed = reply)
+
 
 @commands.cooldown(1, 1, commands.BucketType.member)
 @client.command(aliases=["h"])
@@ -445,30 +409,20 @@ async def help(ctx, *, section=None):
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
 
+
 @commands.cooldown(1, 30, commands.BucketType.user)
-@client.command(aliases=["load"])
+@client.command(
+    aliases=["load"],
+    description="скачивает данные гильдии в виде `.xlsx` таблицы.",
+    usage="Название гильдии",
+    brief="Короли" )
 async def download(ctx, *, guild_name):
     pr = ctx.prefix
-    collection = db["subguilds"]
-    result = collection.find_one(
-        {"_id": ctx.guild.id, "subguilds.name": guild_name},
-        projection={"subguilds": True}
-    )
-    if result is None:
-        reply = discord.Embed(
-            title = "💢 Упс",
-            description = (
-                f"На сервере нет гильдий с названием **{guild_name}**\n"
-                f"Список гильдий: `{pr}top`"
-            ),
-            color = mmorpg_col("vinous")
-        )
-        await ctx.send(embed = reply)
+    g = Guild(ctx.guild.id, name=guild_name)
+    if g is None:
+        raise IsNotSubguild(guild_name)
     
     else:
-        g = Guild(get_subguild(result, guild_name))
-        del result
-
         leader = None
         if g.leader_id is not None:
             leader = ctx.guild.get_member(g.leader_id)
@@ -482,14 +436,11 @@ async def download(ctx, *, guild_name):
             ["", "", "", "Помощник", f"{helper}", "", "Опыт участника"],
             ["", "", "", "ID помощника", f"{g.helper_id}"]
         ]
-        members = g.members_as_pairs()
-        g.forget_members()
-        members.sort(key=lambda pair: pair[1], reverse=True)
-        for pair in members:
-            member = ctx.guild.get_member(pair[0])
+        for m in sorted(g.members, key=lambda m: m.xp, reverse=True):
+            member = ctx.guild.get_member(m.id)
             table[0].append(f"{member}")
-            table[1].append(f"{pair[0]}")
-            table[2].append(f"{pair[1]}")
+            table[1].append(f"{m.id}")
+            table[2].append(f"{m.xp}")
         del g
 
         workbook = Workbook(f"Guild_download_{ctx.author.id}.xlsx")
@@ -505,12 +456,13 @@ async def download(ctx, *, guild_name):
             )
         os.remove(f"Guild_download_{ctx.author.id}.xlsx")
 
-#======== Events ========
+#----------------------------+
+#         On Message         |
+#----------------------------+
 @client.event
 async def on_message(message):
     # If not direct message
-    if message.guild != None:
-        collection = None
+    if message.guild is not None:
         user_id = message.author.id
         server_id = message.guild.id
         channel_id = message.channel.id
@@ -518,97 +470,32 @@ async def on_message(message):
 
         if not message.author.bot:
             if message.content in [f"<@!{client.user.id}>", f"<@{client.user.id}>"]:
-                collection = db["cmd_channels"]
-                result = collection.find_one({"_id": server_id}, projection={"prefix": True})
-                await message.channel.send(f"Мой префикс: `{result.get('prefix', default_prefix)}`")
+                pref = ResponseConfig(server_id, {"prefix": True}).prefix
+                await message.channel.send(f"Мой префикс: `{pref}`")
 
             await client.process_commands(message)
             del message
 
             # Checking cooldown
-            collection = db["subguilds"]
-
             xpbuf = XP_gateway(xp_gateway_path)
             passed_cd = xpbuf.process(user_id)
             
-            
             if passed_cd:
-                result = collection.find_one(
-                    {
-                        "_id": server_id, f"subguilds.members.{user_id}": {"$exists": True}
-                    },
-                    projection={"ignore_chats": True, "xp_locked": True, "subguilds": True}
-                )
-                to_ignore = get_field(result, "ignore_chats", default=[])
-                xp_locked = get_field(result, "xp_locked", default=False)
-
-                # Calculating income depending on the leading guild
-                if not xp_locked and channel_id not in to_ignore:
-                    sg_found = False
-                    sg_name = None
-                    S, M = -1, -1
-                    for sg in get_field(result, "subguilds", default=[]):
-                        total_mes = 0
-                        total_memb = 0
-                        for key in sg["members"]:
-                            memb = sg["members"][key]
-
-                            if not sg_found and f"{user_id}" == key:
-                                sg_found = True
-                                sg_name = "temporary"
-                            
-                            total_mes += memb["messages"]
-                            total_memb += 1
-                        
-                        if total_mes > S:
-                            S, M = total_mes, total_memb
-                        if sg_name != None and sg_found:
-                            sg_name = None
-                            Si, Mi = total_mes, total_memb
-                        
-                    if sg_found:
-                        income = round(10 * (((M+10) / (Mi+10))**(1/4) * ((S+10) / (Si+10))**(1/2)))
-
-                        collection.update_one(
-                            {
-                                "_id": server_id,
-                                f"subguilds.members.{user_id}": {"$exists": True}
-                            },
-                            {"$inc": {f"subguilds.$.members.{user_id}.messages": income}}
-                        )
+                sconf = Server(server_id, {"ignore_chats": True, "xp_locked": True, "subguilds.members": True})
+                # Adding xp
+                if not sconf.xp_locked and channel_id not in sconf.ignore_channels:
+                    sconf.add_auto_xp(user_id)
         
         # Award with mentions
         if mentioned_members != []:
-            if collection is None:
-                collection = db["subguilds"]
+            Server(server_id, dont_request_bd=True).add_mentions(user_id, mentioned_members)
 
-            key_words = [f"subguilds.members.{ID}" for ID in mentioned_members]
-            del mentioned_members
-
-            proj = {kw: True for kw in key_words}
-            proj["subguilds.name"] = True
-
-            result = collection.find_one(
-                {"_id": server_id, "mentioner_id": user_id},
-                projection=proj
-            )
-            del proj
-            
-            if result is not None:
-                subguilds = get_field(result, "subguilds", default=[])
-                for sg in subguilds:
-                    if sg["members"] != {}:
-                        collection.update_one(
-                            {"_id": server_id, "subguilds.name": sg["name"]},
-                            {"$inc": {"subguilds.$.mentions": len(sg["members"])}}
-                        )
-
-#======== Errors ==========
-# Cooldown
+#----------------------------+
+#   Processing Exceptions    |
+#----------------------------+
 @client.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandOnCooldown):
-        
         def TimeExpand(time):
             if time//60 > 0:
                 return str(time//60)+'мин. '+str(time%60)+' сек.'
@@ -617,43 +504,91 @@ async def on_command_error(ctx, error):
             else:
                 return f"0.1 сек."
         
-        cool_notify = discord.Embed(
-                title='⏳ Подождите немного',
-                description = f"Осталось {TimeExpand(int(error.retry_after))}"
-            )
-        await ctx.send(embed=cool_notify)
+        reply = discord.Embed()
+        reply.title ='⏳ | Подождите немного'
+        reply.description = f"Осталось {TimeExpand(int(error.retry_after))}"
+        reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=reply)
     
     elif isinstance(error, commands.CommandNotFound):
         pass
     
-    elif isinstance(error, commands.MissingRequiredArgument):
+    elif isinstance(error, EmergencyExit):
         pass
-    
-    else:
-        print(f">-> {datetime.datetime.utcnow() + datetime.timedelta(hours=3)} | {error}")
 
-@download.error
-async def download_error(ctx, error):
-    if isinstance(error, commands.MissingRequiredArgument):
-        p = ctx.prefix
-        cmd = ctx.command.name
+    elif isinstance(error, commands.MissingRequiredArgument):
+        p = ctx.prefix; cmd = ctx.command
+        iw = cmd.name
+        description = "`-`"; usage = "`-`"; brief = "`-`"; aliases = "-"
+        if cmd.description != "":
+            description = cmd.description
+        if cmd.usage is not None:
+            usage = "\n> ".join( [f"`{p}{iw} {u}`" for u in cmd.usage.split("\n")] )
+        if cmd.brief is not None:
+            brief = "\n> ".join( [f"`{p}{iw} {u}`" for u in cmd.brief.split("\n")] )
+        if len(cmd.aliases) > 0:
+            aliases = "`, `".join(cmd.aliases)
+        
         reply = discord.Embed(
-            title = f"❓ Об аргументах `{p}{cmd}`",
+            title = f"❓ | Об аргументах `{p}{iw}`",
             description = (
-                "**Описание:** скачивает данные гильдии в виде .xlsx таблицы\n"
-                f"**Использование:** `{p}{cmd} Название гильдии`\n"
-                f"**Пример:** `{p}{cmd} Короли`"
-            )
+                f"**Описание:** {description}\n\n"
+                f"**Использование:** {usage}\n"
+                f"**Примеры:** {brief}\n\n"
+                f"**Синонимы:** `{aliases}`"
+            ),
+            color=int("ffce4b", 16)
         )
-        reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-        await ctx.send(embed = reply)
+        if cmd.help is not None:          # So here I use cmd.help as an optional url holder
+            reply.set_image(url=cmd.help) # Ok? So don't forget please
+        reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=reply)
+
+        try:
+            ctx.command.reset_cooldown(ctx)
+        except Exception:
+            pass
+    
+    elif isinstance(error, commands.BadArgument):
+        if isinstance(error, commands.MemberNotFound):
+            desc = f"Участник **{anf(error.argument)}** не был найден."
+        elif isinstance(error, commands.ChannelNotFound):
+            desc = f"Канал **{anf(error.argument)}** не был найден."
+        elif isinstance(error, commands.RoleNotFound):
+            desc = f"Роль **{anf(error.argument)}** не была найдена."
+        elif isinstance(error, IsNotInt):
+            desc = f"Аргумент **{error.argument}** должен быть целым числом, например `5`."
+        elif isinstance(error, IsNotSubguild):
+            desc = f"По запросу **{anf(error.argument)}** не было найдено гильдий."
+        else:
+            desc = "Введённый аргумент не соответствует требуемому формату."
+
+        reply = discord.Embed(
+            title="❌ | Что-то введено неправильно...",
+            description=desc,
+            color=discord.Color.dark_red()
+        )
+        reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=reply)
+
+    elif isinstance(error, commands.MissingPermissions):
+        reply = discord.Embed(
+            title="❌ | Недостаточно прав",
+            description=f"Нужно одно из прав:\n{display_perms(error.missing_perms)}",
+            color=discord.Color.dark_red()
+        )
+        reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=reply)
+
+    else:
+        print(error)
 
 
 async def change_status(status_text, str_activity):
     await client.wait_until_ready()
     await client.change_presence(
         activity=discord.Game(status_text),
-        status=get_field(statuses, str_activity)
+        status=statuses.get(str_activity, discord.Status.online)
     )
 client.loop.create_task(change_status(f"{default_prefix}help", "online"))
 
