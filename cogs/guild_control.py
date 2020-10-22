@@ -439,7 +439,7 @@ class guild_control(commands.Cog):
                                 desc = "Роль гильдии была удалена."
                             else:
                                 value = await commands.RoleConverter().convert(ctx, text)
-                                if not ctx.author.guild_permissions.manage_roles or value.position >= ctx.author.top_role.position:
+                                if not ((ctx.author.guild_permissions.manage_roles and value.position < ctx.author.top_role.position) or ctx.author.id == ctx.guild.owner_id):
                                     correct_arg = False
                                     desc = f"Роль <@&{value.id}> не ниже Вашей или у Вас нет прав на управление ролями."
                                 elif not ctx.guild.me.guild_permissions.manage_roles or value.position >= ctx.guild.me.top_role.position:
