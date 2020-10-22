@@ -101,8 +101,9 @@ class guild_use(commands.Cog):
         #
         elif sconf.auto_join:
             sconf = Server(ctx.guild.id, {
-                "subguilds.members": True, "subguilds.limit": True, "member_limit": True, "subguilds.leader_id": True,
-                "subguilds.requests": True, "subguilds.private": True, "subguilds.name": True, "subguilds.helper_id": True})
+                "subguilds.members": True, "subguilds.limit": True, "member_limit": True,
+                "subguilds.leader_id": True, "subguilds.requests": True, "subguilds.private": True,
+                "subguilds.name": True, "subguilds.helper_id": True, "subguilds.role_id": True})
             spare_guild = None
             spare_private_guild = None
             # Performing guild analisys
@@ -131,6 +132,7 @@ class guild_use(commands.Cog):
                 )
                 reply.set_footer(text=f"{ctx.author}", icon_url=ctx.author.avatar_url)
                 await ctx.send(embed=reply)
+                await give_join_role(ctx.author, spare_guild.role_id)
             # Worst cases
             else:
                 # If there isn't even a spare private guild
@@ -182,7 +184,7 @@ class guild_use(commands.Cog):
             else:
                 g = Guild(ctx.guild.id, name=guild_name, attrs_projection={
                     "private": True, "limit": True, "leader_id": True, "helper_id": True,
-                    "members": True, "requests": True, "name": True
+                    "members": True, "requests": True, "name": True, "role_id": True
                 })
                 g.__members = []
                 # Joining an opened guild
@@ -201,6 +203,7 @@ class guild_use(commands.Cog):
                         reply.description = f"Теперь Вы участник **{anf(g.name)}**."
                         reply.set_footer(text=f"{ctx.author}", icon_url=ctx.author.avatar_url)
                         await ctx.send(embed=reply)
+                        await give_join_role(ctx.author, g.role_id)
                 # Joining a private guild
                 else:
                     g.request_join(ctx.author.id)
