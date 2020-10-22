@@ -222,7 +222,7 @@ class guild_control(commands.Cog):
         sconf = Server(ctx.guild.id, {
             "subguilds.name": True, "subguilds.leader_id": True,
             "log_channel": True, "master_roles": True, "creator_roles": True,
-            "guild_limit": True, "creator_limit": True
+            "guild_limit": True, "creator_limit": True, f"subguilds.members.{ctx.author.id}": True
         })
         if sconf.guild_count >= sconf.guild_limit:
             reply = discord.Embed(color=discord.Color.dark_red())
