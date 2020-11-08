@@ -690,7 +690,10 @@ class guild_control(commands.Cog):
 
             else:
                 if num == "all":
-                    g.accept_requests()
+                    for m in g.requests:
+                        member = ctx.guild.get_member(m)
+                        g.accept_requests(member.id)
+                        await give_join_role(member, g.role_id)
                     desc = f"Принято заявок: **{g.request_count}**"
                 else:
                     member = ctx.guild.get_member(g.requests[num - 1])
